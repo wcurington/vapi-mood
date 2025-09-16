@@ -82,9 +82,13 @@ app.get("/start-batch", async (req, res) => {
       `Started calls for ${nextThree.map((e) => e.row[idIdx]).join(", ")}`
     );
   } catch (err) {
-    console.error("Batch error:", err.message, err.stack);
-  res.status(500).send("Error starting batch: " + err.message);
+  console.error("Batch error full object:", err);
+  try {
+    res.status(500).send("Error starting batch: " + JSON.stringify(err));
+  } catch (e) {
+    res.status(500).send("Error starting batch (could not stringify error)");
   }
+}
 });
 
 // === Endpoint: Handle Vapi Callbacks ===
