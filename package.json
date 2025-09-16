@@ -2,11 +2,28 @@
   "name": "vapi-render-webhook",
   "version": "1.0.0",
   "description": "Vapi webhook receiver for Render",
-  "engines": { "node": "20.x" },
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.18.2"
-  }
+    "body-parser": "^1.20.3",
+    "express": "^4.21.2",
+    "googleapis": "^131.0.0",
+    "node-fetch": "^3.3.2"
+  },
+  "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wcurington/vapi-webhook.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/wcurington/vapi-webhook/issues"
+  },
+  "homepage": "https://github.com/wcurington/vapi-webhook#readme"
 }
