@@ -1,0 +1,12 @@
+{
+  "name": "vapi-render-webhook",
+  "version": "1.0.0",
+  "description": "Vapi webhook receiver for Render",
+  "engines": { "node": "20.x" },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
