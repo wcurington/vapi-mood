@@ -5,6 +5,10 @@ const fetch = require("node-fetch");
 
 const app = express();
 app.use(bodyParser.json());
+// Default route for sanity check
+app.get("/", (req, res) => {
+  res.send("✅ Vapi Webhook is running! Try /start-batch to trigger calls.");
+});
 
 // === Google Sheets Setup ===
 function getAuth() {
@@ -24,6 +28,12 @@ const SHEET_NAME = "outbound_list"; // your sheet tab name
 app.get("/start-batch", async (req, res) => {
   try {
     const auth = await getAuth();
+
+    // 👇 NEW LOGGING
+    const client = await auth.getClient();
+    const projectId = await auth.getProjectId();
+    console.log("Using service account:", client.email, "Project:", projectId);
+
     const sheets = google.sheets({ version: "v4", auth });
 
     // 1. Get all rows
