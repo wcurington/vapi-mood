@@ -26,7 +26,7 @@ const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
 
 // === Vapi IDs (UUIDs only, no prefixes) ===
 const ASSISTANT_ID = "17df5a21-f369-40ce-af33-0beab6683f21";
-const PHONE_NUMBER_ID = "f9ecb3f9-b02f-4263-bf9d-2993456f451f";
+const PHONE_NUMBER_ID = "01185cf2-6c2d-4ce2-988b-5cae261581a8";
 
 // === Apps Script URL for logging callbacks ===
 const APPS_SCRIPT_URL =
