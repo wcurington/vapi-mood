@@ -1,4 +1,3 @@
-console.log("Fetch type:", typeof fetch);
 const express = require("express");
 const bodyParser = require("body-parser");
 const { google } = require("googleapis");
@@ -23,17 +22,20 @@ function getAuth() {
 }
 
 const SHEET_ID = process.env.SPREADSHEET_ID;
-const SHEET_NAME = "outbound_list"; // 👈 Make sure this matches your tab name
+const SHEET_NAME = "outbound_list"; // 👈 Must match your tab name exactly
 
 // === Endpoint: Trigger Batch Calls ===
 app.get("/start-batch", async (req, res) => {
   try {
     const auth = await getAuth();
 
-    // Log which service account and project are being used
+    // Debug: log which service account & project are used
     const client = await auth.getClient();
     const projectId = await auth.getProjectId();
     console.log("Using service account:", client.email, "Project:", projectId);
+
+    // Debug: confirm fetch works
+    console.log("Fetch type:", typeof fetch);
 
     const sheets = google.sheets({ version: "v4", auth });
 
@@ -86,7 +88,7 @@ app.get("/start-batch", async (req, res) => {
         },
         body: JSON.stringify({
           phoneNumber: phone,
-          webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback", // Replace if your Render URL changes
+          webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback", // Replace if URL changes
           metadata: { id, rowIndex },
         }),
       });
@@ -117,7 +119,7 @@ app.post("/vapi-callback", async (req, res) => {
   try {
     const { metadata, status, result } = req.body;
     const id = metadata?.id;
-    const rowIndex = metadata?.rowIndex; // from /start-batch
+    const rowIndex = metadata?.rowIndex;
     const timestamp = new Date().toISOString();
 
     if (!id || !rowIndex) {
@@ -134,7 +136,7 @@ app.post("/vapi-callback", async (req, res) => {
     });
     const headers = headerResp.data.values[0];
 
-    const statusIdx = headers.indexOf("status") + 1; // +1 because Sheets API is 1-based
+    const statusIdx = headers.indexOf("status") + 1;
     const attemptsIdx = headers.indexOf("attempts") + 1;
     const lastAttemptIdx = headers.indexOf("lastAttemptAt") + 1;
     const resultIdx = headers.indexOf("result") + 1;
@@ -179,3 +181,4 @@ app.post("/vapi-callback", async (req, res) => {
 // === Start Server ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+
