@@ -24,11 +24,11 @@ function getAuth() {
 const SHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
 
-// === Vapi IDs (provided) ===
-const ASSISTANT_ID = "assistant-17df5a21-f369-40ce-af33-0beab6683f21";
-const PHONE_NUMBER_ID = "phone number-f9ecb3f9-b02f-4263-bf9d-2993456f451f";
+// === Vapi IDs (UUIDs only, no prefixes) ===
+const ASSISTANT_ID = "17df5a21-f369-40ce-af33-0beab6683f21";
+const PHONE_NUMBER_ID = "f9ecb3f9-b02f-4263-bf9d-2993456f451f";
 
-// === Apps Script URL (for logging callbacks) ===
+// === Apps Script URL for logging callbacks ===
 const APPS_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbwLspnRCCJ--LQQR3IuMfpI0PgUr6aialt2AJ3t1-OUmgdZQJVukNul9Lodmz98enY5og/exec";
 
@@ -94,11 +94,11 @@ app.get("/start-batch", async (req, res) => {
       console.log(`📞 Starting call for id=${id}, phone=${phone}`);
 
       const payload = {
-  assistantId: "17df5a21-f369-40ce-af33-0beab6683f21", // UUID only
-  phoneNumberId: "f9ecb3f9-b02f-4263-bf9d-2993456f451f", // UUID only
-  customer: { number: phone }, // must be in +E.164 format
-  metadata: { id, rowIndex }   // still fine, gets echoed in callback
-};
+        assistantId: ASSISTANT_ID,
+        phoneNumberId: PHONE_NUMBER_ID,
+        customer: { number: phone }, // must be in +E.164 format
+        metadata: { id, rowIndex },
+      };
 
       console.log("Sending to Vapi:", payload);
 
@@ -232,3 +232,4 @@ app.post("/vapi-callback", async (req, res) => {
 // === Start Server ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
+
