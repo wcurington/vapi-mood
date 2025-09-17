@@ -94,12 +94,11 @@ app.get("/start-batch", async (req, res) => {
       console.log(`📞 Starting call for id=${id}, phone=${phone}`);
 
       const payload = {
-        assistantId: ASSISTANT_ID,
-        phoneNumberId: PHONE_NUMBER_ID,
-        customer: { number: phone }, // must be in +E.164 format
-        webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback",
-        metadata: { id, rowIndex },
-      };
+  assistantId: "17df5a21-f369-40ce-af33-0beab6683f21", // UUID only
+  phoneNumberId: "f9ecb3f9-b02f-4263-bf9d-2993456f451f", // UUID only
+  customer: { number: phone }, // must be in +E.164 format
+  metadata: { id, rowIndex }   // still fine, gets echoed in callback
+};
 
       console.log("Sending to Vapi:", payload);
 
