@@ -170,31 +170,31 @@ app.post("/vapi-callback", async (req, res) => {
     const lastAttemptIdx = headers.indexOf("lastAttemptAt") + 1;
     const resultIdx = headers.indexOf("result") + 1;
 
-    // Read current attempts
-    const attemptsCell = `${SHEET_NAME}!${String.fromCharCode(64 + attemptsIdx)}${rowIndex}`;
-    const currentAttemptsResp = await sheets.spreadsheets.values.get({
+    // Read current attempts (R1C1 safe)
+    const attemptsResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: attemptsCell,
+      range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,
+      valueRenderOption: "UNFORMATTED_VALUE",
     });
     const currentAttempts =
-      parseInt(currentAttemptsResp.data.values?.[0]?.[0] || "0", 10);
+      parseInt(attemptsResp.data.values?.[0]?.[0] || "0", 10);
 
-    // Prepare updates
+    // Prepare updates using R1C1 notation
     const updates = [
       {
-        range: `${SHEET_NAME}!${String.fromCharCode(64 + statusIdx)}${rowIndex}`,
+        range: `${SHEET_NAME}!R${rowIndex}C${statusIdx}`,
         values: [[status || "completed"]],
       },
       {
-        range: attemptsCell,
+        range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,
         values: [[currentAttempts + 1]],
       },
       {
-        range: `${SHEET_NAME}!${String.fromCharCode(64 + lastAttemptIdx)}${rowIndex}`,
+        range: `${SHEET_NAME}!R${rowIndex}C${lastAttemptIdx}`,
         values: [[timestamp]],
       },
       {
-        range: `${SHEET_NAME}!${String.fromCharCode(64 + resultIdx)}${rowIndex}`,
+        range: `${SHEET_NAME}!R${rowIndex}C${resultIdx}`,
         values: [[result || ""]],
       },
     ];
@@ -232,4 +232,3 @@ app.post("/vapi-callback", async (req, res) => {
 // === Start Server ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
-
