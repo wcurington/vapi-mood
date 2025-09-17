@@ -24,7 +24,7 @@ function getAuth() {
 const SHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
 
-// === Vapi IDs (UUIDs only, no prefixes) ===
+// === Vapi IDs (UUIDs only) ===
 const ASSISTANT_ID = "17df5a21-f369-40ce-af33-0beab6683f21";
 const PHONE_NUMBER_ID = "f9ecb3f9-b02f-4263-bf9d-2993456f451f";
 
@@ -36,15 +36,12 @@ const APPS_SCRIPT_URL =
 app.get("/start-batch", async (req, res) => {
   try {
     const auth = await getAuth();
-
-    // Log service account info
     const client = await auth.getClient();
     const projectId = await auth.getProjectId();
     console.log("Using service account:", client.email, "Project:", projectId);
 
     const sheets = google.sheets({ version: "v4", auth });
 
-    // 1. Get all rows
     const range = `${SHEET_NAME}!A:I`;
     console.log("Fetching from sheet:", SHEET_ID, "tab:", SHEET_NAME, "range:", range);
 
@@ -59,12 +56,10 @@ app.get("/start-batch", async (req, res) => {
     const headers = rows[0];
     const dataRows = rows.slice(1);
 
-    // Map header indices
     const idIdx = headers.indexOf("id");
     const phoneIdx = headers.indexOf("phone");
     const statusIdx = headers.indexOf("status");
 
-    // 2. Filter next 3 contacts with empty or pending status
     const nextThree = dataRows
       .map((row, i) => ({ row, i }))
       .filter(
@@ -76,12 +71,11 @@ app.get("/start-batch", async (req, res) => {
 
     if (nextThree.length === 0) return res.send("No pending contacts");
 
-    // 3. Start Vapi calls + collect responses
     const results = [];
 
     for (let entry of nextThree) {
       const row = entry.row;
-      const rowIndex = entry.i + 2; // +2 for header row + 1-based index
+      const rowIndex = entry.i + 2;
       const id = row[idIdx];
       const phone = row[phoneIdx];
 
@@ -96,11 +90,9 @@ app.get("/start-batch", async (req, res) => {
       const payload = {
         assistantId: ASSISTANT_ID,
         phoneNumberId: PHONE_NUMBER_ID,
-        customer: { number: phone }, // must be in +E.164 format
+        customer: { number: phone },
         metadata: { id, rowIndex },
       };
-
-      console.log("Sending to Vapi:", payload);
 
       const vapiResp = await fetch("https://api.vapi.ai/call", {
         method: "POST",
@@ -124,15 +116,11 @@ app.get("/start-batch", async (req, res) => {
       results.push({ id, phone, response: vapiJson });
     }
 
-    // ✅ Return results
     res.json({ started: results });
   } catch (err) {
     console.error("Batch error object:", err);
-
     if (err.response && err.response.data) {
-      res
-        .status(500)
-        .send("Error starting batch: " + JSON.stringify(err.response.data));
+      res.status(500).send("Error starting batch: " + JSON.stringify(err.response.data));
     } else if (err.message) {
       res.status(500).send("Error starting batch: " + err.message);
     } else {
@@ -158,49 +146,49 @@ app.post("/vapi-callback", async (req, res) => {
     const auth = await getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    // Get header indices
+    // Get header indices, normalize to lowercase
     const headerResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A1:I1`,
     });
-    const headers = headerResp.data.values[0];
+    const headers = headerResp.data.values[0].map((h) => h.toLowerCase());
 
     const statusIdx = headers.indexOf("status") + 1;
     const attemptsIdx = headers.indexOf("attempts") + 1;
-    const lastAttemptIdx = headers.indexOf("lastAttemptAt") + 1;
+    const lastAttemptIdx = headers.indexOf("lastattemptat") + 1;
     const resultIdx = headers.indexOf("result") + 1;
 
-    // Read current attempts (R1C1 safe)
+    if (statusIdx <= 0 || attemptsIdx <= 0 || lastAttemptIdx <= 0 || resultIdx <= 0) {
+      throw new Error("❌ One or more required headers not found. Check outbound_list headers.");
+    }
+
     const attemptsResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,
-      valueRenderOption: "UNFORMATTED_VALUE",
+      range: `${SHEET_NAME}!A${rowIndex}:I${rowIndex}`,
     });
-    const currentAttempts =
-      parseInt(attemptsResp.data.values?.[0]?.[0] || "0", 10);
+    const rowValues = attemptsResp.data.values?.[0] || [];
+    const currentAttempts = parseInt(rowValues[attemptsIdx - 1] || "0", 10);
 
-    // Prepare updates using R1C1 notation
     const updates = [
       {
-        range: `${SHEET_NAME}!R${rowIndex}C${statusIdx}`,
+        range: `${SHEET_NAME}!${String.fromCharCode(64 + statusIdx)}${rowIndex}`,
         values: [[status || "completed"]],
       },
       {
-        range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,
+        range: `${SHEET_NAME}!${String.fromCharCode(64 + attemptsIdx)}${rowIndex}`,
         values: [[currentAttempts + 1]],
       },
       {
-        range: `${SHEET_NAME}!R${rowIndex}C${lastAttemptIdx}`,
+        range: `${SHEET_NAME}!${String.fromCharCode(64 + lastAttemptIdx)}${rowIndex}`,
         values: [[timestamp]],
       },
       {
-        range: `${SHEET_NAME}!R${rowIndex}C${resultIdx}`,
+        range: `${SHEET_NAME}!${String.fromCharCode(64 + resultIdx)}${rowIndex}`,
         values: [[result || ""]],
       },
     ];
 
-    // Batch update to Google Sheet
-    await sheets.spreadsheets.values.batchUpdate({
+    const updateResp = await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
       requestBody: {
         valueInputOption: "RAW",
@@ -208,9 +196,9 @@ app.post("/vapi-callback", async (req, res) => {
       },
     });
 
+    console.log("✅ Google Sheets update response:", JSON.stringify(updateResp.data, null, 2));
     console.log(`✅ Updated row ${rowIndex} for id=${id}`);
 
-    // === Forward callback to Apps Script logger ===
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: "POST",
