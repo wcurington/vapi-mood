@@ -28,6 +28,10 @@ const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
 const ASSISTANT_ID = "assistant-17df5a21-f369-40ce-af33-0beab6683f21";
 const PHONE_NUMBER_ID = "phone number-f9ecb3f9-b02f-4263-bf9d-2993456f451f";
 
+// === Apps Script URL (for logging callbacks) ===
+const APPS_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbwLspnRCCJ--LQQR3IuMfpI0PgUr6aialt2AJ3t1-OUmgdZQJVukNul9Lodmz98enY5og/exec";
+
 // === Endpoint: Trigger Batch Calls ===
 app.get("/start-batch", async (req, res) => {
   try {
@@ -37,8 +41,6 @@ app.get("/start-batch", async (req, res) => {
     const client = await auth.getClient();
     const projectId = await auth.getProjectId();
     console.log("Using service account:", client.email, "Project:", projectId);
-
-    console.log("Fetch type:", typeof fetch); // should be "function"
 
     const sheets = google.sheets({ version: "v4", auth });
 
@@ -123,18 +125,16 @@ app.get("/start-batch", async (req, res) => {
       results.push({ id, phone, response: vapiJson });
     }
 
-    // ✅ Return results to browser / Google Sheets popup
+    // ✅ Return results
     res.json({ started: results });
   } catch (err) {
     console.error("Batch error object:", err);
 
     if (err.response && err.response.data) {
-      console.error("Google API error data:", err.response.data);
       res
         .status(500)
         .send("Error starting batch: " + JSON.stringify(err.response.data));
     } else if (err.message) {
-      console.error("Error message:", err.message);
       res.status(500).send("Error starting batch: " + err.message);
     } else {
       res.status(500).send("Error starting batch: " + JSON.stringify(err));
@@ -145,7 +145,6 @@ app.get("/start-batch", async (req, res) => {
 // === Endpoint: Handle Vapi Callbacks ===
 app.post("/vapi-callback", async (req, res) => {
   try {
-    // 🔍 Log raw callback body
     console.log("📩 Incoming Vapi callback:", JSON.stringify(req.body, null, 2));
 
     const { metadata, status, result } = req.body;
@@ -160,7 +159,7 @@ app.post("/vapi-callback", async (req, res) => {
     const auth = await getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    // Get header indices again
+    // Get header indices
     const headerResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A1:I1`,
@@ -201,7 +200,7 @@ app.post("/vapi-callback", async (req, res) => {
       },
     ];
 
-    // Batch update
+    // Batch update to Google Sheet
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
       requestBody: {
@@ -211,7 +210,20 @@ app.post("/vapi-callback", async (req, res) => {
     });
 
     console.log(`✅ Updated row ${rowIndex} for id=${id}`);
-    res.send("Row updated");
+
+    // === Forward callback to Apps Script logger ===
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+      });
+      console.log("📤 Forwarded callback to Apps Script");
+    } catch (forwardErr) {
+      console.error("⚠️ Failed to forward callback to Apps Script:", forwardErr);
+    }
+
+    res.send("Row updated + callback forwarded");
   } catch (err) {
     console.error("Callback error:", err);
     res.status(500).send("Error handling callback: " + err.message);
