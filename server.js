@@ -1,3 +1,4 @@
+console.log("Fetch type:", typeof fetch);
 const express = require("express");
 const bodyParser = require("body-parser");
 const { google } = require("googleapis");
