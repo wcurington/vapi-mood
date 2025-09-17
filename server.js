@@ -5,7 +5,8 @@ const fetch = require("node-fetch");
 
 const app = express();
 app.use(bodyParser.json());
-// Default route for sanity check
+
+// === Default route for sanity check ===
 app.get("/", (req, res) => {
   res.send("✅ Vapi Webhook is running! Try /start-batch to trigger calls.");
 });
@@ -22,14 +23,14 @@ function getAuth() {
 }
 
 const SHEET_ID = process.env.SPREADSHEET_ID;
-const SHEET_NAME = "outbound_list"; // your sheet tab name
+const SHEET_NAME = "outbound_list"; // 👈 Make sure this matches your tab name
 
 // === Endpoint: Trigger Batch Calls ===
 app.get("/start-batch", async (req, res) => {
   try {
     const auth = await getAuth();
 
-    // 👇 NEW LOGGING
+    // Log which service account and project are being used
     const client = await auth.getClient();
     const projectId = await auth.getProjectId();
     console.log("Using service account:", client.email, "Project:", projectId);
@@ -38,6 +39,8 @@ app.get("/start-batch", async (req, res) => {
 
     // 1. Get all rows
     const range = `${SHEET_NAME}!A:I`;
+    console.log("Fetching from sheet:", SHEET_ID, "tab:", SHEET_NAME, "range:", range);
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range,
@@ -73,6 +76,8 @@ app.get("/start-batch", async (req, res) => {
       const id = row[idIdx];
       const phone = row[phoneIdx];
 
+      console.log(`📞 Starting call for id=${id}, phone=${phone}`);
+
       await fetch("https://api.vapi.ai/calls", {
         method: "POST",
         headers: {
@@ -81,8 +86,7 @@ app.get("/start-batch", async (req, res) => {
         },
         body: JSON.stringify({
           phoneNumber: phone,
-          webhookUrl:
-            "https://vapi-webhook-eely.onrender.com/vapi-callback", // Replace with your Render URL
+          webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback", // Replace if your Render URL changes
           metadata: { id, rowIndex },
         }),
       });
@@ -92,13 +96,20 @@ app.get("/start-batch", async (req, res) => {
       `Started calls for ${nextThree.map((e) => e.row[idIdx]).join(", ")}`
     );
   } catch (err) {
-  console.error("Batch error full object:", err);
-  try {
-    res.status(500).send("Error starting batch: " + JSON.stringify(err));
-  } catch (e) {
-    res.status(500).send("Error starting batch (could not stringify error)");
+    console.error("Batch error object:", err);
+
+    if (err.response && err.response.data) {
+      console.error("Google API error data:", err.response.data);
+      res
+        .status(500)
+        .send("Error starting batch: " + JSON.stringify(err.response.data));
+    } else if (err.message) {
+      console.error("Error message:", err.message);
+      res.status(500).send("Error starting batch: " + err.message);
+    } else {
+      res.status(500).send("Error starting batch: " + JSON.stringify(err));
+    }
   }
-}
 });
 
 // === Endpoint: Handle Vapi Callbacks ===
@@ -136,7 +147,7 @@ app.post("/vapi-callback", async (req, res) => {
       },
       {
         range: `${SHEET_NAME}!${String.fromCharCode(64 + attemptsIdx)}${rowIndex}`,
-        values: [[1]], // You could read old value & increment; here we just set to 1
+        values: [[1]], // You could increment instead of overwriting
       },
       {
         range: `${SHEET_NAME}!${String.fromCharCode(64 + lastAttemptIdx)}${rowIndex}`,
@@ -157,13 +168,14 @@ app.post("/vapi-callback", async (req, res) => {
       },
     });
 
+    console.log(`✅ Updated row ${rowIndex} for id=${id}`);
     res.send("Row updated");
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Error handling callback");
+    console.error("Callback error:", err);
+    res.status(500).send("Error handling callback: " + err.message);
   }
 });
 
 // === Start Server ===
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
