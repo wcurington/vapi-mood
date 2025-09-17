@@ -7,7 +7,7 @@ app.use(bodyParser.json());
 
 // === Default route for sanity check ===
 app.get("/", (req, res) => {
-  res.send("✅ Vapi Webhook is running! Try /start-batch to trigger calls.");
+  res.send("✅ Vapi Webhook is running! Use /start-batch or trigger from Google Sheets.");
 });
 
 // === Google Sheets Setup ===
@@ -22,20 +22,20 @@ function getAuth() {
 }
 
 const SHEET_ID = process.env.SPREADSHEET_ID;
-const SHEET_NAME = "outbound_list"; // 👈 Must match your tab name exactly
+const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
+const VAPI_NUMBER = "+15046819404"; // 👈 your assigned outbound number
 
 // === Endpoint: Trigger Batch Calls ===
 app.get("/start-batch", async (req, res) => {
   try {
     const auth = await getAuth();
 
-    // Debug: log which service account & project are used
+    // Log service account info
     const client = await auth.getClient();
     const projectId = await auth.getProjectId();
     console.log("Using service account:", client.email, "Project:", projectId);
 
-    // Debug: confirm fetch works
-    console.log("Fetch type:", typeof fetch);
+    console.log("Fetch type:", typeof fetch); // should be "function"
 
     const sheets = google.sheets({ version: "v4", auth });
 
@@ -78,21 +78,33 @@ app.get("/start-batch", async (req, res) => {
       const id = row[idIdx];
       const phone = row[phoneIdx];
 
+      if (!phone) {
+        console.warn(`⚠️ Skipping id=${id} (no phone number)`);
+        continue;
+      }
+
       console.log(`📞 Starting call for id=${id}, phone=${phone}`);
 
-      await fetch("https://api.vapi.ai/calls", {
+      const payload = {
+        from: VAPI_NUMBER,
+        phoneNumber: phone, // must be in +E.164 format
+        webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback",
+        metadata: { id, rowIndex },
+      };
+
+      console.log("Sending to Vapi:", payload);
+
+      const vapiResp = await fetch("https://api.vapi.ai/calls", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.VAPI_API_KEY}`,
         },
-        body: JSON.stringify({
-          from: "+15046819404",   // 👈 your Vapi-assigned outbound number
-    phoneNumber: phone,    // recipient’s number from sheet
-    webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback",
-    metadata: { id, rowIndex },
-        }),
+        body: JSON.stringify(payload),
       });
+
+      const vapiResult = await vapiResp.text();
+      console.log("Vapi response:", vapiResult);
     }
 
     res.send(
@@ -142,6 +154,15 @@ app.post("/vapi-callback", async (req, res) => {
     const lastAttemptIdx = headers.indexOf("lastAttemptAt") + 1;
     const resultIdx = headers.indexOf("result") + 1;
 
+    // Read current attempts
+    const attemptsCell = `${SHEET_NAME}!${String.fromCharCode(64 + attemptsIdx)}${rowIndex}`;
+    const currentAttemptsResp = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: attemptsCell,
+    });
+    const currentAttempts =
+      parseInt(currentAttemptsResp.data.values?.[0]?.[0] || "0", 10);
+
     // Prepare updates
     const updates = [
       {
@@ -149,8 +170,8 @@ app.post("/vapi-callback", async (req, res) => {
         values: [[status || "completed"]],
       },
       {
-        range: `${SHEET_NAME}!${String.fromCharCode(64 + attemptsIdx)}${rowIndex}`,
-        values: [[1]], // You could increment instead of overwriting
+        range: attemptsCell,
+        values: [[currentAttempts + 1]],
       },
       {
         range: `${SHEET_NAME}!${String.fromCharCode(64 + lastAttemptIdx)}${rowIndex}`,
@@ -182,4 +203,3 @@ app.post("/vapi-callback", async (req, res) => {
 // === Start Server ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
-
