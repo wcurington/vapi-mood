@@ -198,7 +198,7 @@ app.get("/start-batch", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.8a2026ee-3589-46e7-955c-12d02e596c20}`,
+          Authorization: `Bearer ${process.env.VAPI_API_KEY}`,
         },
         body: JSON.stringify(payload),
       });
