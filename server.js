@@ -87,7 +87,7 @@ app.get("/start-batch", async (req, res) => {
           Authorization: `Bearer ${process.env.VAPI_API_KEY}`,
         },
         body: JSON.stringify({
-          phoneNumber: phone,
+          phoneNumber: +15046819404,
           webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback", // Replace if URL changes
           metadata: { id, rowIndex },
         }),
