@@ -23,7 +23,10 @@ function getAuth() {
 
 const SHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
-const VAPI_NUMBER = "+15046819404"; // 👈 your assigned outbound number
+
+// === Vapi IDs (provided) ===
+const ASSISTANT_ID = "assistant-17df5a21-f369-40ce-af33-0beab6683f21";
+const PHONE_NUMBER_ID = "phone number-f9ecb3f9-b02f-4263-bf9d-2993456f451f";
 
 // === Endpoint: Trigger Batch Calls ===
 app.get("/start-batch", async (req, res) => {
@@ -71,7 +74,9 @@ app.get("/start-batch", async (req, res) => {
 
     if (nextThree.length === 0) return res.send("No pending contacts");
 
-    // 3. Start Vapi calls
+    // 3. Start Vapi calls + collect responses
+    const results = [];
+
     for (let entry of nextThree) {
       const row = entry.row;
       const rowIndex = entry.i + 2; // +2 for header row + 1-based index
@@ -80,36 +85,46 @@ app.get("/start-batch", async (req, res) => {
 
       if (!phone) {
         console.warn(`⚠️ Skipping id=${id} (no phone number)`);
+        results.push({ id, phone, error: "No phone number" });
         continue;
       }
 
       console.log(`📞 Starting call for id=${id}, phone=${phone}`);
 
       const payload = {
-        from: VAPI_NUMBER,
-        phoneNumber: phone, // must be in +E.164 format
+        assistantId: ASSISTANT_ID,
+        phoneNumberId: PHONE_NUMBER_ID,
+        customer: { number: phone }, // must be in +E.164 format
         webhookUrl: "https://vapi-webhook-eely.onrender.com/vapi-callback",
         metadata: { id, rowIndex },
       };
 
       console.log("Sending to Vapi:", payload);
 
-      const vapiResp = await fetch("https://api.vapi.ai/calls", {
+      const vapiResp = await fetch("https://api.vapi.ai/call", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.VAPI_API_KEY}`, // ✅ Correct
+          Authorization: `Bearer ${process.env.VAPI_API_KEY}`,
         },
         body: JSON.stringify(payload),
       });
 
-      const vapiResult = await vapiResp.text();
-      console.log("Vapi response:", vapiResult);
+      const vapiResultText = await vapiResp.text();
+      console.log("Vapi response:", vapiResultText);
+
+      let vapiJson;
+      try {
+        vapiJson = JSON.parse(vapiResultText);
+      } catch {
+        vapiJson = { raw: vapiResultText };
+      }
+
+      results.push({ id, phone, response: vapiJson });
     }
 
-    res.send(
-      `Started calls for ${nextThree.map((e) => e.row[idIdx]).join(", ")}`
-    );
+    // ✅ Return results to browser / Google Sheets popup
+    res.json({ started: results });
   } catch (err) {
     console.error("Batch error object:", err);
 
@@ -130,6 +145,9 @@ app.get("/start-batch", async (req, res) => {
 // === Endpoint: Handle Vapi Callbacks ===
 app.post("/vapi-callback", async (req, res) => {
   try {
+    // 🔍 Log raw callback body
+    console.log("📩 Incoming Vapi callback:", JSON.stringify(req.body, null, 2));
+
     const { metadata, status, result } = req.body;
     const id = metadata?.id;
     const rowIndex = metadata?.rowIndex;
@@ -203,4 +221,3 @@ app.post("/vapi-callback", async (req, res) => {
 // === Start Server ===
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));
-
