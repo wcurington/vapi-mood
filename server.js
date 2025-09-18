@@ -229,7 +229,6 @@ function getSession(sessionId) {
 
 function handleTransition(session, userInput = "") {
   const current = salesFlow.states[session.state];
-
   if (current && current.capture) {
     session.data[current.capture] = userInput;
   }
@@ -250,12 +249,14 @@ function handleTransition(session, userInput = "") {
       input.includes("operator") ||
       input.includes("supervisor")
     ) {
-      session.state = current.branches.service;
+      session.state = "hotline_offer"; // force hotline branch
     } else {
       session.state = current.branches.hesitate || current.next;
     }
   } else if (current && current.next) {
     session.state = current.next;
+  } else {
+    session.state = "catch_all"; // fallback if nothing matches
   }
 }
 
@@ -293,17 +294,33 @@ app.post("/vapi-webhook", (req, res) => {
   if (typeof userInput === "string" && userInput.trim()) handleTransition(session, userInput);
 
   const current = salesFlow.states[session.state];
+
   if (!current) {
-    const text = "Thank you for your time today.";
+    // fallback catch-all
+    const text = "I didn’t quite catch that. For assistance, you can also call our support line at 1-866-379-5131.";
     const settings = toneMap.neutral;
-    return res.json({ say: text, tone: "neutral", voice: settings, ssml: toSSML(text, settings), format: "ssml", end: true });
+    return res.json({
+      say: text,
+      tone: "neutral",
+      voice: settings,
+      ssml: toSSML(text, settings),
+      format: "ssml",
+      end: false
+    });
   }
 
   const tone = current.tone || "neutral";
   const settings = toneMap[tone] || toneMap.neutral;
   const text = current.say || "Let’s continue.";
 
-  return res.json({ say: text, tone, voice: settings, ssml: toSSML(text, settings), format: "ssml", end: !!current.end });
+  return res.json({
+    say: text,
+    tone,
+    voice: settings,
+    ssml: toSSML(text, settings),
+    format: "ssml",
+    end: !!current.end
+  });
 });
 
 // ============================
