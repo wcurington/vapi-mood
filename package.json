@@ -1,14 +1,13 @@
-cp -n package.json package.json.bak || true
-cat > package.json << 'JSON'
 {
-  "name": "alex-vapi-server",
+  "name": "vapi-render-webhook",
   "version": "1.0.0",
   "description": "Vapi webhook + batch dialer with tone-aware Straight Line flow",
   "main": "server.js",
   "type": "commonjs",
   "engines": { "node": "18.x" },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
@@ -18,5 +17,4 @@ cat > package.json << 'JSON'
     "node-fetch": "2.6.7"
   }
 }
-JSON
 
