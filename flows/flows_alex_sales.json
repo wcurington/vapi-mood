@@ -3,14 +3,26 @@
     "start": {
       "say": "Hello, this is Alex with Health America. How are you doing today?",
       "tone": "enthusiastic",
-      "next": "reason_for_call"
+      "next": "reason_for_call",
+      "branches": {
+        "service": "offer_hotline"
+      }
     },
     "reason_for_call": {
       "say": "The reason I’m calling is to follow up on the health information we sent you. Did you get that okay?",
       "tone": "enthusiastic",
       "branches": {
         "yes": "qualify_start",
-        "no": "qualify_start"
+        "no": "qualify_start",
+        "service": "offer_hotline"
+      }
+    },
+    "offer_hotline": {
+      "say": "I understand you’d like support. You can always reach our team directly at 1-866-379-5131. Did you want me to also help you here while you have me on the line?",
+      "tone": "empathetic",
+      "branches": {
+        "yes": "qualify_start",
+        "no": "end_call"
       }
     },
     "qualify_start": {
@@ -41,7 +53,7 @@
       "next": "product_pitch"
     },
     "product_pitch": {
-      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}}. The total today comes to eighty dollars and ninety-nine cents.",
+      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}}.",
       "tone": "enthusiastic",
       "next": "trial_close"
     },
@@ -50,7 +62,8 @@
       "tone": "calm_confidence",
       "branches": {
         "yes": "offer_choice",
-        "hesitate": "objection_handling"
+        "hesitate": "objection_handling",
+        "service": "offer_hotline"
       }
     },
     "offer_choice": {
@@ -63,55 +76,25 @@
       "logic": "match_objection",
       "tone": "empathetic",
       "responses": {
-        "price": "I completely understand — health is an investment. I can offer up to fifteen percent off today. No shipping or taxes, plus a free bonus gift.",
-        "trust": "I get it. Health America has been trusted nationwide for years, ships from the U.S., and every order is covered by our guarantee.",
-        "delay": "I respect that. But today’s discount and bonus gift are only available now. And remember, you’re fully covered by our guarantee."
+        "price": "I completely understand — health is an investment. I can offer up to 15% off today. No shipping or taxes.",
+        "trust": "Health America has been trusted nationwide for years, ships from the U.S., and is covered by our money-back guarantee.",
+        "delay": "I respect that. But today’s discount and bonus gift are only available now. You’re fully covered by our guarantee."
       },
       "next": "trial_close"
     },
     "payment_capture": {
-      "say": "Which card would you like to use?",
+      "say": "Which card would you like to use? I’ll also need your shipping address, and please confirm if your billing address is the same.",
       "tone": "authoritative",
       "capture": "payment_info",
-      "next": "shipping_address"
-    },
-    "shipping_address": {
-      "say": "Can I have your shipping address please?",
-      "tone": "empathetic",
-      "capture": "shipping_address",
-      "next": "billing_same"
-    },
-    "billing_same": {
-      "say": "Is your billing address the same as your shipping address?",
-      "tone": "empathetic",
-      "branches": {
-        "yes": "payment_processing",
-        "no": "billing_address"
-      }
-    },
-    "billing_address": {
-      "say": "Please provide your billing address.",
-      "tone": "empathetic",
-      "capture": "billing_address",
-      "next": "payment_processing"
-    },
-    "payment_processing": {
-      "say": "One moment while I process your order.",
-      "tone": "calm_confidence",
       "next": "confirm_order"
     },
     "confirm_order": {
-      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results. If you need help in the future, call us at 1-866-379-5131.",
+      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Remember, you can always reach us directly at 1-866-379-5131. Thank you for choosing Health America — you’re going to love the results.",
       "tone": "absolute_certainty",
       "end": true
     },
-    "offer_hotline": {
-      "say": "If you’d prefer to speak directly with our support team, please call us anytime at 1-866-379-5131.",
-      "tone": "empathetic",
-      "next": "end_conversation"
-    },
-    "end_conversation": {
-      "say": "Thank you again for your time today. Have a wonderful day.",
+    "end_call": {
+      "say": "Thank you for your time today. Remember, our team is available anytime at 1-866-379-5131.",
       "tone": "neutral",
       "end": true
     }
