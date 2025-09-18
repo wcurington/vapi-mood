@@ -10,8 +10,7 @@
       "tone": "enthusiastic",
       "branches": {
         "yes": "qualify_start",
-        "no": "qualify_start",
-        "hesitate": "qualify_start"
+        "no": "qualify_start"
       }
     },
     "qualify_start": {
@@ -39,18 +38,11 @@
     },
     "branch_routing": {
       "logic": "map_flags_to_category",
-      "tools": ["PRODUCT_KNOWLEDGEBASE Sheet(1).csv"],
-      "next": "needs_confirm"
-    },
-    "needs_confirm": {
-      "say": "So we’re focusing on {{primary_goal}} — and you also mentioned {{secondary_goal}}. That matches what I’m seeing.",
-      "tone": "empathetic",
       "next": "product_pitch"
     },
     "product_pitch": {
-      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}} — optional, but it can accelerate results.",
+      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}}. The total today comes to eighty dollars and ninety-nine cents.",
       "tone": "enthusiastic",
-      "tools": ["PRODUCT_KNOWLEDGEBASE Sheet(1).csv"],
       "next": "trial_close"
     },
     "trial_close": {
@@ -58,7 +50,6 @@
       "tone": "calm_confidence",
       "branches": {
         "yes": "offer_choice",
-        "no": "objection_handling",
         "hesitate": "objection_handling"
       }
     },
@@ -72,10 +63,9 @@
       "logic": "match_objection",
       "tone": "empathetic",
       "responses": {
-        "price": "I completely understand — health is an investment. I can include up to 15% off today, and there are no shipping fees or taxes. And if you ever need us directly, our reorder line is 866-379-5131.",
-        "trust": "I get it — Health America has been trusted nationwide for years, ships from the U.S., and every order is backed by our money-back guarantee. You can even call our reorder line at 866-379-5131 to verify.",
-        "delay": "I respect that. Today’s discount and bonus gift are only available now, and you’re fully covered by our guarantee. If anything comes up, our reorder line is 866-379-5131.",
-        "default": "Totally fair. Let’s keep this simple: I’ll secure your discount and bonus gift now so you don’t miss it — you’re protected by our guarantee. And if you ever need us, our reorder line is 866-379-5131."
+        "price": "I completely understand — health is an investment. I can offer up to fifteen percent off today. No shipping or taxes, plus a free bonus gift.",
+        "trust": "I get it. Health America has been trusted nationwide for years, ships from the U.S., and every order is covered by our guarantee.",
+        "delay": "I respect that. But today’s discount and bonus gift are only available now. And remember, you’re fully covered by our guarantee."
       },
       "next": "trial_close"
     },
@@ -83,27 +73,47 @@
       "say": "Which card would you like to use?",
       "tone": "authoritative",
       "capture": "payment_info",
-      "tools": ["log.sale.google.tool.json"],
+      "next": "shipping_address"
+    },
+    "shipping_address": {
+      "say": "Can I have your shipping address please?",
+      "tone": "empathetic",
+      "capture": "shipping_address",
+      "next": "billing_same"
+    },
+    "billing_same": {
+      "say": "Is your billing address the same as your shipping address?",
+      "tone": "empathetic",
+      "branches": {
+        "yes": "payment_processing",
+        "no": "billing_address"
+      }
+    },
+    "billing_address": {
+      "say": "Please provide your billing address.",
+      "tone": "empathetic",
+      "capture": "billing_address",
+      "next": "payment_processing"
+    },
+    "payment_processing": {
+      "say": "One moment while I process your order.",
+      "tone": "calm_confidence",
       "next": "confirm_order"
     },
     "confirm_order": {
-      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results. If you ever need us again, our reorder line is 866-379-5131.",
+      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results. If you need help in the future, call us at 1-866-379-5131.",
       "tone": "absolute_certainty",
-      "tools": ["log.sale.google.tool.json"],
+      "end": true
+    },
+    "offer_hotline": {
+      "say": "If you’d prefer to speak directly with our support team, please call us anytime at 1-866-379-5131.",
+      "tone": "empathetic",
+      "next": "end_conversation"
+    },
+    "end_conversation": {
+      "say": "Thank you again for your time today. Have a wonderful day.",
+      "tone": "neutral",
       "end": true
     }
-  },
-  "tools": [
-    { "id": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv", "type": "function" },
-    { "id": "log.sale.google.tool.json", "type": "google.sheets.row.append" },
-    { "id": "query_KB.tool.json", "type": "function" },
-    { "id": "Alex-mood", "type": "apiRequest", "url": "https://vapi-mood.onrender.com/vapi-webhook", "method": "POST" }
-  ],
-  "tones": {
-    "enthusiastic": { "pitch": "+5%", "rate": "+15%", "volume": "default" },
-    "empathetic": { "pitch": "-5%", "rate": "-10%", "volume": "soft" },
-    "authoritative": { "pitch": "-3%", "rate": "default", "volume": "loud" },
-    "calm_confidence": { "pitch": "0%", "rate": "-5%", "volume": "default" },
-    "absolute_certainty": { "pitch": "-8%", "rate": "-5%", "volume": "strong" }
   }
 }
