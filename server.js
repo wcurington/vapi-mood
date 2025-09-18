@@ -70,7 +70,7 @@ app.get("/start-batch", async (req, res) => {
     const auth = await getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    const range = `${SHEET_NAME}!A:Z`; // future-proof, pull more cols
+    const range = `${SHEET_NAME}!A:Z`;
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range,
@@ -101,7 +101,7 @@ app.get("/start-batch", async (req, res) => {
 
     for (let entry of nextThree) {
       const row = entry.row;
-      const rowIndex = entry.i + 2; // +2 for header + 1-based index
+      const rowIndex = entry.i + 2;
       const id = row[idIdx];
       const phone = row[phoneIdx];
 
@@ -167,7 +167,6 @@ app.post("/vapi-callback", async (req, res) => {
     const auth = await getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    // headers
     const headerResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!A1:Z1`,
@@ -183,14 +182,12 @@ app.post("/vapi-callback", async (req, res) => {
       throw new Error("❌ Missing required headers (status, attempts, lastattemptat, result)");
     }
 
-    // read attempts
     const attemptsResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,
     });
     const currentAttempts = parseInt(attemptsResp.data.values?.[0]?.[0] || "0", 10);
 
-    // updates
     const updates = [
       { range: `${SHEET_NAME}!R${rowIndex}C${statusIdx}`, values: [[status || "completed"]] },
       { range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`, values: [[currentAttempts + 1]] },
@@ -203,7 +200,6 @@ app.post("/vapi-callback", async (req, res) => {
       requestBody: { valueInputOption: "RAW", data: updates },
     });
 
-    // Forward to Apps Script
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: "POST",
@@ -233,14 +229,31 @@ function getSession(sessionId) {
 
 function handleTransition(session, userInput = "") {
   const current = salesFlow.states[session.state];
+
   if (current && current.capture) {
     session.data[current.capture] = userInput;
   }
+
   if (current && current.branches) {
     const input = (userInput || "").toLowerCase();
-    if (input.includes("yes")) session.state = current.branches.yes;
-    else if (input.includes("no")) session.state = current.branches.no;
-    else session.state = current.branches.hesitate || current.next;
+
+    if (input.includes("yes")) {
+      session.state = current.branches.yes;
+    } else if (input.includes("no")) {
+      session.state = current.branches.no;
+    } else if (
+      input.includes("service") ||
+      input.includes("support") ||
+      input.includes("help") ||
+      input.includes("representative") ||
+      input.includes("agent") ||
+      input.includes("operator") ||
+      input.includes("supervisor")
+    ) {
+      session.state = current.branches.service;
+    } else {
+      session.state = current.branches.hesitate || current.next;
+    }
   } else if (current && current.next) {
     session.state = current.next;
   }
