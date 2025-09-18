@@ -1,18 +1,34 @@
+// ============================
+// server.js – Vapi Tone-Aware Batch Dialer + Webhook
+// ============================
+
+require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const { google } = require("googleapis");
+const fetch = require("node-fetch"); // v2, pinned in package.json
+const path = require("path");
+
+// ==== Load Straight-Line Flow (tone-aware JSON) ====
+let salesFlow;
+try {
+  salesFlow = require(path.join(__dirname, "flows", "flows_alex_sales.json"));
+  console.log("✅ Loaded sales flow JSON");
+} catch (err) {
+  console.warn("⚠️ Warning: flows/flows_alex_sales.json not found or invalid");
+  salesFlow = { states: { start: { say: "Hello, this is Alex.", tone: "neutral", end: true } } };
+}
 
 const app = express();
 app.use(bodyParser.json());
 
-// === Default route for sanity check ===
-app.get("/", (req, res) => {
-  res.send("✅ Vapi Webhook is running! Use /start-batch or trigger from Google Sheets.");
-});
-
-// === Google Sheets Setup ===
+// ============================
+// Google Sheets Setup
+// ============================
 function getAuth() {
   const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT;
+  if (!base64Key) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT env var (base64 JSON).");
+
   const jsonKey = JSON.parse(Buffer.from(base64Key, "base64").toString("utf8"));
 
   return new google.auth.GoogleAuth({
@@ -22,29 +38,39 @@ function getAuth() {
 }
 
 const SHEET_ID = process.env.SPREADSHEET_ID;
-const SHEET_NAME = "outbound_list"; // 👈 must match your tab name exactly
+const SHEET_NAME = "outbound_list"; // must match tab name in Google Sheets
 
-// === Vapi IDs (UUIDs only, no prefixes) ===
-const ASSISTANT_ID = "17df5a21-f369-40ce-af33-0beab6683f21";
-const PHONE_NUMBER_ID = "01185cf2-6c2d-4ce2-988b-5cae261581a8";
+// ============================
+// Vapi IDs (from .env)
+// ============================
+const ASSISTANT_ID = process.env.ASSISTANT_ID;
+const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+const VAPI_API_KEY = process.env.VAPI_API_KEY;
 
-// === Apps Script URL for logging callbacks ===
-const APPS_SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbwLspnRCCJ--LQQR3IuMfpI0PgUr6aialt2AJ3t1-OUmgdZQJVukNul9Lodmz98enY5og/exec";
+// ============================
+// Apps Script URL
+// ============================
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 
-// === Endpoint: Trigger Batch Calls ===
+// ============================
+// Sanity check route
+// ============================
+app.get("/", (req, res) => {
+  res.send("✅ Vapi Webhook is running! Endpoints: /start-batch, /vapi-webhook, /vapi-callback");
+});
+
+// ============================
+// Batch Dialer: trigger next 3 calls
+// ============================
 app.get("/start-batch", async (req, res) => {
   try {
-    const auth = await getAuth();
-    const client = await auth.getClient();
-    const projectId = await auth.getProjectId();
-    console.log("Using service account:", client.email, "Project:", projectId);
+    if (!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
+    if (!VAPI_API_KEY) throw new Error("Missing VAPI_API_KEY");
 
+    const auth = await getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    const range = `${SHEET_NAME}!A:I`;
-    console.log("Fetching from sheet:", SHEET_ID, "tab:", SHEET_NAME, "range:", range);
-
+    const range = `${SHEET_NAME}!A:Z`; // future-proof, pull more cols
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range,
@@ -61,16 +87,12 @@ app.get("/start-batch", async (req, res) => {
     const statusIdx = headers.indexOf("status");
 
     if (idIdx === -1 || phoneIdx === -1 || statusIdx === -1) {
-      throw new Error("❌ Missing required headers in outbound_list");
+      throw new Error("❌ Missing required headers in outbound_list (need id, phone, status).");
     }
 
     const nextThree = dataRows
       .map((row, i) => ({ row, i }))
-      .filter(
-        (r) =>
-          !r.row[statusIdx] ||
-          r.row[statusIdx].toLowerCase() === "pending"
-      )
+      .filter((r) => !r.row[statusIdx] || r.row[statusIdx].toLowerCase() === "pending")
       .slice(0, 3);
 
     if (nextThree.length === 0) return res.send("No pending contacts");
@@ -79,12 +101,12 @@ app.get("/start-batch", async (req, res) => {
 
     for (let entry of nextThree) {
       const row = entry.row;
-      const rowIndex = entry.i + 2; // +2 for header row + 1-based index
+      const rowIndex = entry.i + 2; // +2 for header + 1-based index
       const id = row[idIdx];
       const phone = row[phoneIdx];
 
       if (!phone) {
-        console.warn(`⚠️ Skipping id=${id} (no phone number)`);
+        console.warn(`⚠️ Skipping id=${id} (no phone)`);
         results.push({ id, phone, error: "No phone number" });
         continue;
       }
@@ -102,7 +124,7 @@ app.get("/start-batch", async (req, res) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.VAPI_API_KEY}`,
+          Authorization: `Bearer ${VAPI_API_KEY}`,
         },
         body: JSON.stringify(payload),
       });
@@ -122,38 +144,33 @@ app.get("/start-batch", async (req, res) => {
 
     res.json({ started: results });
   } catch (err) {
-    console.error("Batch error object:", err);
-    if (err.response && err.response.data) {
-      res.status(500).send("Error starting batch: " + JSON.stringify(err.response.data));
-    } else if (err.message) {
-      res.status(500).send("Error starting batch: " + err.message);
-    } else {
-      res.status(500).send("Error starting batch: " + JSON.stringify(err));
-    }
+    console.error("Batch error:", err);
+    res.status(500).send("Error starting batch: " + (err.message || String(err)));
   }
 });
 
-// === Endpoint: Handle Vapi Callbacks ===
+// ============================
+// Callback Logger (from Vapi)
+// ============================
 app.post("/vapi-callback", async (req, res) => {
   try {
     console.log("📩 Incoming Vapi callback:", JSON.stringify(req.body, null, 2));
 
-    const { metadata, status, result } = req.body;
+    const { metadata, status, result } = req.body || {};
     const id = metadata?.id;
     const rowIndex = metadata?.rowIndex;
     const timestamp = new Date().toISOString();
 
-    if (!id || !rowIndex) {
-      throw new Error("Missing metadata.id or rowIndex in callback");
-    }
+    if (!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
+    if (!id || !rowIndex) throw new Error("Missing metadata.id or rowIndex");
 
     const auth = await getAuth();
     const sheets = google.sheets({ version: "v4", auth });
 
-    // Get headers
+    // headers
     const headerResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
-      range: `${SHEET_NAME}!A1:I1`,
+      range: `${SHEET_NAME}!A1:Z1`,
     });
     const headers = headerResp.data.values[0].map((h) => h.toLowerCase());
 
@@ -163,17 +180,17 @@ app.post("/vapi-callback", async (req, res) => {
     const resultIdx = headers.indexOf("result") + 1;
 
     if (statusIdx <= 0 || attemptsIdx <= 0 || lastAttemptIdx <= 0 || resultIdx <= 0) {
-      throw new Error("❌ One or more required headers not found. Check outbound_list headers.");
+      throw new Error("❌ Missing required headers (status, attempts, lastattemptat, result)");
     }
 
-    // Read current attempts
+    // read attempts
     const attemptsResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,
     });
     const currentAttempts = parseInt(attemptsResp.data.values?.[0]?.[0] || "0", 10);
 
-    // Prepare updates using R1C1 only
+    // updates
     const updates = [
       { range: `${SHEET_NAME}!R${rowIndex}C${statusIdx}`, values: [[status || "completed"]] },
       { range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`, values: [[currentAttempts + 1]] },
@@ -181,18 +198,12 @@ app.post("/vapi-callback", async (req, res) => {
       { range: `${SHEET_NAME}!R${rowIndex}C${resultIdx}`, values: [[result || ""]] },
     ];
 
-    const updateResp = await sheets.spreadsheets.values.batchUpdate({
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
-      requestBody: {
-        valueInputOption: "RAW",
-        data: updates,
-      },
+      requestBody: { valueInputOption: "RAW", data: updates },
     });
 
-    console.log("✅ Google Sheets update response:", JSON.stringify(updateResp.data, null, 2));
-    console.log(`✅ Updated row ${rowIndex} for id=${id}`);
-
-    // Forward callback to Apps Script
+    // Forward to Apps Script
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: "POST",
@@ -201,7 +212,7 @@ app.post("/vapi-callback", async (req, res) => {
       });
       console.log("📤 Forwarded callback to Apps Script");
     } catch (forwardErr) {
-      console.error("⚠️ Failed to forward callback to Apps Script:", forwardErr);
+      console.error("⚠️ Forward to Apps Script failed:", forwardErr);
     }
 
     res.send("Row updated + callback forwarded");
@@ -211,6 +222,79 @@ app.post("/vapi-callback", async (req, res) => {
   }
 });
 
-// === Start Server ===
+// ============================
+// Conversation Flow State Machine
+// ============================
+const sessions = {};
+function getSession(sessionId) {
+  if (!sessions[sessionId]) sessions[sessionId] = { state: "start", data: {} };
+  return sessions[sessionId];
+}
+
+function handleTransition(session, userInput = "") {
+  const current = salesFlow.states[session.state];
+  if (current && current.capture) {
+    session.data[current.capture] = userInput;
+  }
+  if (current && current.branches) {
+    const input = (userInput || "").toLowerCase();
+    if (input.includes("yes")) session.state = current.branches.yes;
+    else if (input.includes("no")) session.state = current.branches.no;
+    else session.state = current.branches.hesitate || current.next;
+  } else if (current && current.next) {
+    session.state = current.next;
+  }
+}
+
+// ============================
+// Tone Map + SSML Builder
+// ============================
+const toneMap = {
+  enthusiastic: { pitch: "+5%", rate: "+15%", volume: "loud" },
+  empathetic: { pitch: "-5%", rate: "-10%", volume: "soft" },
+  authoritative: { pitch: "-3%", rate: "default", volume: "loud" },
+  calm_confidence: { pitch: "default", rate: "-5%", volume: "medium" },
+  absolute_certainty: { pitch: "-8%", rate: "-5%", volume: "x-loud" },
+  neutral: { pitch: "default", rate: "default", volume: "medium" },
+};
+
+function toSSML(text, settings) {
+  const pitch = settings.pitch === "default" ? "0%" : settings.pitch;
+  const rate = settings.rate === "default" ? "0%" : settings.rate;
+  const vol = settings.volume === "default" ? "medium" : settings.volume;
+  return `<speak><prosody pitch="${pitch}" rate="${rate}" volume="${vol}">${escapeXml(text)}</prosody></speak>`;
+}
+
+function escapeXml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ============================
+// Tone-Aware Webhook
+// ============================
+app.post("/vapi-webhook", (req, res) => {
+  const { sessionId, userInput } = req.body || {};
+  if (!sessionId) return res.status(400).json({ error: "Missing sessionId" });
+
+  const session = getSession(sessionId);
+  if (typeof userInput === "string" && userInput.trim()) handleTransition(session, userInput);
+
+  const current = salesFlow.states[session.state];
+  if (!current) {
+    const text = "Thank you for your time today.";
+    const settings = toneMap.neutral;
+    return res.json({ say: text, tone: "neutral", voice: settings, ssml: toSSML(text, settings), format: "ssml", end: true });
+  }
+
+  const tone = current.tone || "neutral";
+  const settings = toneMap[tone] || toneMap.neutral;
+  const text = current.say || "Let’s continue.";
+
+  return res.json({ say: text, tone, voice: settings, ssml: toSSML(text, settings), format: "ssml", end: !!current.end });
+});
+
+// ============================
+// Start Server
+// ============================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));

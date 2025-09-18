@@ -1,28 +1,22 @@
+cp -n package.json package.json.bak || true
+cat > package.json << 'JSON'
 {
-  "name": "vapi-render-webhook",
+  "name": "alex-vapi-server",
   "version": "1.0.0",
-  "description": "Vapi webhook receiver for Render",
-  "engines": {
-    "node": "20.x"
-  },
+  "description": "Vapi webhook + batch dialer with tone-aware Straight Line flow",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": { "node": "18.x" },
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "body-parser": "^1.20.3",
-    "express": "^4.21.2",
-    "googleapis": "^131.0.0"
-  },
-  "main": "server.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/wcurington/vapi-webhook.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/wcurington/vapi-webhook/issues"
-  },
-  "homepage": "https://github.com/wcurington/vapi-webhook#readme"
+    "body-parser": "^1.20.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "googleapis": "^131.0.0",
+    "node-fetch": "2.6.7"
+  }
 }
+JSON
+

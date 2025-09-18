@@ -1,0 +1,51 @@
+{
+  "states": {
+    "start": {
+      "say": "Hello, this is Alex with Health America. How are you doing today?",
+      "tone": "enthusiastic",
+      "next": "reason_for_call"
+    },
+    "reason_for_call": {
+      "say": "The reason I’m calling is to follow up on the health information we sent you. Did you get that okay?",
+      "tone": "enthusiastic",
+      "branches": { "yes": "qualify_start", "no": "qualify_start", "hesitate": "qualify_start" }
+    },
+    "qualify_start": {
+      "say": "Let me ask you a few quick questions to better understand your health.",
+      "tone": "curious",
+      "next": "product_pitch"
+    },
+    "product_pitch": {
+      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}}.",
+      "tone": "enthusiastic",
+      "next": "trial_close"
+    },
+    "trial_close": {
+      "say": "That sounds like exactly what you’re looking for, doesn’t it?",
+      "tone": "calm_confidence",
+      "branches": { "yes": "offer_choice", "no": "objection_handling", "hesitate": "objection_handling" }
+    },
+    "offer_choice": {
+      "say": "Would you like the single bottle or the value pack that saves more per bottle?",
+      "tone": "authoritative",
+      "capture": "product_choice",
+      "next": "payment_capture"
+    },
+    "objection_handling": {
+      "say": "I completely understand. You’re fully covered by our guarantee, and I can include up to 15% off today with no shipping or taxes.",
+      "tone": "empathetic",
+      "next": "trial_close"
+    },
+    "payment_capture": {
+      "say": "Which card would you like to use?",
+      "tone": "authoritative",
+      "capture": "payment_info",
+      "next": "confirm_order"
+    },
+    "confirm_order": {
+      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results.",
+      "tone": "absolute_certainty",
+      "end": true
+    }
+  }
+}
