@@ -8,22 +8,52 @@
     "reason_for_call": {
       "say": "The reason I’m calling is to follow up on the health information we sent you. Did you get that okay?",
       "tone": "enthusiastic",
-      "branches": { "yes": "qualify_start", "no": "qualify_start", "hesitate": "qualify_start" }
+      "branches": {
+        "yes": "qualify_start",
+        "no": "qualify_start"
+      }
     },
     "qualify_start": {
       "say": "Let me ask you a few quick questions to better understand your health.",
       "tone": "curious",
+      "next": "qualify_q1"
+    },
+    "qualify_q1": {
+      "say": "Do you have arthritis or joint stiffness?",
+      "tone": "curious",
+      "capture": "joint_pain",
+      "next": "qualify_q2"
+    },
+    "qualify_q2": {
+      "say": "On a scale of 1 to 10, what’s your pain today?",
+      "tone": "curious",
+      "capture": "pain_level",
+      "next": "qualify_q3"
+    },
+    "qualify_q3": {
+      "say": "If you don’t mind me asking, how old are you?",
+      "tone": "curious",
+      "capture": "age",
+      "next": "branch_routing"
+    },
+    "branch_routing": {
+      "logic": "map_flags_to_category",
+      "tools": ["PRODUCT_KNOWLEDGEBASE Sheet(1).csv"],
       "next": "product_pitch"
     },
     "product_pitch": {
       "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}}.",
       "tone": "enthusiastic",
+      "tools": ["PRODUCT_KNOWLEDGEBASE Sheet(1).csv"],
       "next": "trial_close"
     },
     "trial_close": {
       "say": "That sounds like exactly what you’re looking for, doesn’t it?",
       "tone": "calm_confidence",
-      "branches": { "yes": "offer_choice", "no": "objection_handling", "hesitate": "objection_handling" }
+      "branches": {
+        "yes": "offer_choice",
+        "hesitate": "objection_handling"
+      }
     },
     "offer_choice": {
       "say": "Would you like the single bottle or the value pack that saves more per bottle?",
@@ -32,20 +62,33 @@
       "next": "payment_capture"
     },
     "objection_handling": {
-      "say": "I completely understand. You’re fully covered by our guarantee, and I can include up to 15% off today with no shipping or taxes.",
+      "logic": "match_objection",
       "tone": "empathetic",
+      "responses": {
+        "price": "I completely understand — health is an investment. I can offer up to 15% off today. No shipping or taxes.",
+        "trust": "Health America has been trusted nationwide for years, ships from the U.S., and is covered by our money-back guarantee.",
+        "delay": "I respect that. But today’s discount and bonus gift are only available now. You’re fully covered by our guarantee."
+      },
       "next": "trial_close"
     },
     "payment_capture": {
       "say": "Which card would you like to use?",
       "tone": "authoritative",
       "capture": "payment_info",
+      "tools": ["log.sale.google.tool.json"],
       "next": "confirm_order"
     },
     "confirm_order": {
       "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results.",
       "tone": "absolute_certainty",
+      "tools": ["log.sale.google.tool.json"],
       "end": true
     }
-  }
+  },
+  "tools": [
+    { "id": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv", "type": "function" },
+    { "id": "log.sale.google.tool.json", "type": "google.sheets.row.append" },
+    { "id": "query_KB.tool.json", "type": "function" },
+    { "id": "Alex-mood", "type": "apiRequest", "url": "https://vapi-mood.onrender.com/vapi-webhook", "method": "POST" }
+  ]
 }
