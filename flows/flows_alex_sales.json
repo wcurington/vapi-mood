@@ -3,10 +3,7 @@
     "start": {
       "say": "Hello, this is Alex with Health America. How are you doing today?",
       "tone": "enthusiastic",
-      "next": "reason_for_call",
-      "branches": {
-        "service": "offer_hotline"
-      }
+      "next": "reason_for_call"
     },
     "reason_for_call": {
       "say": "The reason I’m calling is to follow up on the health information we sent you. Did you get that okay?",
@@ -14,15 +11,15 @@
       "branches": {
         "yes": "qualify_start",
         "no": "qualify_start",
-        "service": "offer_hotline"
+        "service": "hotline_offer"
       }
     },
-    "offer_hotline": {
-      "say": "I understand you’d like support. You can always reach our team directly at 1-866-379-5131. Did you want me to also help you here while you have me on the line?",
+    "hotline_offer": {
+      "say": "I understand you’d like customer service. You can reach our dedicated support line at 1-866-379-5131. Would you like me to help with something here first, or would you prefer to call them directly?",
       "tone": "empathetic",
       "branches": {
         "yes": "qualify_start",
-        "no": "end_call"
+        "no": "end_conversation"
       }
     },
     "qualify_start": {
@@ -63,14 +60,14 @@
       "branches": {
         "yes": "offer_choice",
         "hesitate": "objection_handling",
-        "service": "offer_hotline"
+        "service": "hotline_offer"
       }
     },
     "offer_choice": {
       "say": "Would you like the single bottle or the value pack that saves more per bottle?",
       "tone": "authoritative",
       "capture": "product_choice",
-      "next": "payment_capture"
+      "next": "shipping_address"
     },
     "objection_handling": {
       "logic": "match_objection",
@@ -82,19 +79,39 @@
       },
       "next": "trial_close"
     },
+    "shipping_address": {
+      "say": "Can I have your shipping address, please?",
+      "tone": "empathetic",
+      "capture": "shipping_address",
+      "next": "billing_same"
+    },
+    "billing_same": {
+      "say": "Is your billing address the same as your shipping address?",
+      "tone": "empathetic",
+      "branches": {
+        "yes": "payment_capture",
+        "no": "billing_address"
+      }
+    },
+    "billing_address": {
+      "say": "Please provide your billing address.",
+      "tone": "empathetic",
+      "capture": "billing_address",
+      "next": "payment_capture"
+    },
     "payment_capture": {
-      "say": "Which card would you like to use? I’ll also need your shipping address, and please confirm if your billing address is the same.",
+      "say": "Which card would you like to use?",
       "tone": "authoritative",
       "capture": "payment_info",
       "next": "confirm_order"
     },
     "confirm_order": {
-      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Remember, you can always reach us directly at 1-866-379-5131. Thank you for choosing Health America — you’re going to love the results.",
+      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results. If you ever need assistance, call our support line at 1-866-379-5131.",
       "tone": "absolute_certainty",
       "end": true
     },
-    "end_call": {
-      "say": "Thank you for your time today. Remember, our team is available anytime at 1-866-379-5131.",
+    "end_conversation": {
+      "say": "Thank you for your time today. You can reach us anytime at 1-866-379-5131.",
       "tone": "neutral",
       "end": true
     }
