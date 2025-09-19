@@ -9,13 +9,13 @@ const { google } = require("googleapis");
 const fetch = require("node-fetch"); // v2, pinned in package.json
 const path = require("path");
 
-// ==== Load Straight-Line Flow (tone-aware JSON) ====
+// ==== Load Flow JSON (tone-aware) ====
 let salesFlow;
 try {
   salesFlow = require(path.join(__dirname, "flows", "flows_alex_sales.json"));
   console.log("✅ Loaded sales flow JSON");
 } catch (err) {
-  console.warn("⚠️ Warning: flows/flows_alex_sales.json not found or invalid");
+  console.warn("⚠️ flows/flows_alex_sales.json missing/invalid, using fallback");
   salesFlow = { states: { start: { say: "Hello, this is Alex.", tone: "neutral", end: true } } };
 }
 
@@ -28,9 +28,7 @@ app.use(bodyParser.json());
 function getAuth() {
   const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT;
   if (!base64Key) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT env var (base64 JSON).");
-
   const jsonKey = JSON.parse(Buffer.from(base64Key, "base64").toString("utf8"));
-
   return new google.auth.GoogleAuth({
     credentials: jsonKey,
     scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -38,10 +36,10 @@ function getAuth() {
 }
 
 const SHEET_ID = process.env.SPREADSHEET_ID;
-const SHEET_NAME = "outbound_list"; // must match tab name in Google Sheets
+const SHEET_NAME = "outbound_list";
 
 // ============================
-// Vapi IDs (from .env)
+// Vapi IDs
 // ============================
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
@@ -53,7 +51,7 @@ const VAPI_API_KEY = process.env.VAPI_API_KEY;
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 
 // ============================
-// Sanity check route
+// Sanity route
 // ============================
 app.get("/", (req, res) => {
   res.send("✅ Vapi Webhook is running! Endpoints: /start-batch, /vapi-webhook, /vapi-callback");
@@ -71,11 +69,7 @@ app.get("/start-batch", async (req, res) => {
     const sheets = google.sheets({ version: "v4", auth });
 
     const range = `${SHEET_NAME}!A:Z`;
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range,
-    });
-
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
     const rows = response.data.values;
     if (!rows || rows.length < 2) return res.send("No rows found");
 
@@ -85,9 +79,8 @@ app.get("/start-batch", async (req, res) => {
     const idIdx = headers.indexOf("id");
     const phoneIdx = headers.indexOf("phone");
     const statusIdx = headers.indexOf("status");
-
     if (idIdx === -1 || phoneIdx === -1 || statusIdx === -1) {
-      throw new Error("❌ Missing required headers in outbound_list (need id, phone, status).");
+      throw new Error("❌ Missing headers in outbound_list (need id, phone, status)");
     }
 
     const nextThree = dataRows
@@ -98,7 +91,6 @@ app.get("/start-batch", async (req, res) => {
     if (nextThree.length === 0) return res.send("No pending contacts");
 
     const results = [];
-
     for (let entry of nextThree) {
       const row = entry.row;
       const rowIndex = entry.i + 2;
@@ -107,12 +99,11 @@ app.get("/start-batch", async (req, res) => {
 
       if (!phone) {
         console.warn(`⚠️ Skipping id=${id} (no phone)`);
-        results.push({ id, phone, error: "No phone number" });
+        results.push({ id, phone, error: "No phone" });
         continue;
       }
 
       console.log(`📞 Starting call for id=${id}, phone=${phone}`);
-
       const payload = {
         assistantId: ASSISTANT_ID,
         phoneNumberId: PHONE_NUMBER_ID,
@@ -122,30 +113,24 @@ app.get("/start-batch", async (req, res) => {
 
       const vapiResp = await fetch("https://api.vapi.ai/call", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${VAPI_API_KEY}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${VAPI_API_KEY}` },
         body: JSON.stringify(payload),
       });
 
       const vapiResultText = await vapiResp.text();
-      console.log("Vapi response:", vapiResultText);
-
       let vapiJson;
       try {
         vapiJson = JSON.parse(vapiResultText);
       } catch {
         vapiJson = { raw: vapiResultText };
       }
-
       results.push({ id, phone, response: vapiJson });
     }
 
     res.json({ started: results });
   } catch (err) {
     console.error("Batch error:", err);
-    res.status(500).send("Error starting batch: " + (err.message || String(err)));
+    res.status(500).send("Error starting batch: " + err.message);
   }
 });
 
@@ -154,8 +139,7 @@ app.get("/start-batch", async (req, res) => {
 // ============================
 app.post("/vapi-callback", async (req, res) => {
   try {
-    console.log("📩 Incoming Vapi callback:", JSON.stringify(req.body, null, 2));
-
+    console.log("📩 Vapi callback:", JSON.stringify(req.body, null, 2));
     const { metadata, status, result } = req.body || {};
     const id = metadata?.id;
     const rowIndex = metadata?.rowIndex;
@@ -172,15 +156,10 @@ app.post("/vapi-callback", async (req, res) => {
       range: `${SHEET_NAME}!A1:Z1`,
     });
     const headers = headerResp.data.values[0].map((h) => h.toLowerCase());
-
     const statusIdx = headers.indexOf("status") + 1;
     const attemptsIdx = headers.indexOf("attempts") + 1;
     const lastAttemptIdx = headers.indexOf("lastattemptat") + 1;
     const resultIdx = headers.indexOf("result") + 1;
-
-    if (statusIdx <= 0 || attemptsIdx <= 0 || lastAttemptIdx <= 0 || resultIdx <= 0) {
-      throw new Error("❌ Missing required headers (status, attempts, lastattemptat, result)");
-    }
 
     const attemptsResp = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
@@ -194,7 +173,6 @@ app.post("/vapi-callback", async (req, res) => {
       { range: `${SHEET_NAME}!R${rowIndex}C${lastAttemptIdx}`, values: [[timestamp]] },
       { range: `${SHEET_NAME}!R${rowIndex}C${resultIdx}`, values: [[result || ""]] },
     ];
-
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
       requestBody: { valueInputOption: "RAW", data: updates },
@@ -206,7 +184,6 @@ app.post("/vapi-callback", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(req.body),
       });
-      console.log("📤 Forwarded callback to Apps Script");
     } catch (forwardErr) {
       console.error("⚠️ Forward to Apps Script failed:", forwardErr);
     }
@@ -229,34 +206,19 @@ function getSession(sessionId) {
 
 function handleTransition(session, userInput = "") {
   const current = salesFlow.states[session.state];
-  if (current && current.capture) {
-    session.data[current.capture] = userInput;
-  }
+  if (current && current.capture) session.data[current.capture] = userInput;
 
   if (current && current.branches) {
     const input = (userInput || "").toLowerCase();
-
-    if (input.includes("yes")) {
-      session.state = current.branches.yes;
-    } else if (input.includes("no")) {
-      session.state = current.branches.no;
-    } else if (
-      input.includes("service") ||
-      input.includes("support") ||
-      input.includes("help") ||
-      input.includes("representative") ||
-      input.includes("agent") ||
-      input.includes("operator") ||
-      input.includes("supervisor")
-    ) {
-      session.state = "hotline_offer"; // force hotline branch
-    } else {
-      session.state = current.branches.hesitate || current.next;
-    }
+    if (input.includes("yes")) session.state = current.branches.yes;
+    else if (input.includes("no")) session.state = current.branches.no;
+    else if (/(service|support|help|representative|agent|operator|supervisor)/.test(input))
+      session.state = "hotline_offer";
+    else session.state = current.branches.hesitate || current.next;
   } else if (current && current.next) {
     session.state = current.next;
   } else {
-    session.state = "catch_all"; // fallback if nothing matches
+    session.state = "catch_all";
   }
 }
 
@@ -266,17 +228,25 @@ function handleTransition(session, userInput = "") {
 const toneMap = {
   enthusiastic: { pitch: "+5%", rate: "+15%", volume: "loud" },
   empathetic: { pitch: "-5%", rate: "-10%", volume: "soft" },
-  authoritative: { pitch: "-3%", rate: "default", volume: "loud" },
-  calm_confidence: { pitch: "default", rate: "-5%", volume: "medium" },
+  authoritative: { pitch: "-3%", rate: "0%", volume: "loud" },
+  calm_confidence: { pitch: "0%", rate: "-5%", volume: "medium" },
   absolute_certainty: { pitch: "-8%", rate: "-5%", volume: "x-loud" },
-  neutral: { pitch: "default", rate: "default", volume: "medium" },
+  neutral: { pitch: "0%", rate: "0%", volume: "medium" },
 };
 
-function toSSML(text, settings) {
-  const pitch = settings.pitch === "default" ? "0%" : settings.pitch;
-  const rate = settings.rate === "default" ? "0%" : settings.rate;
-  const vol = settings.volume === "default" ? "medium" : settings.volume;
-  return `<speak><prosody pitch="${pitch}" rate="${rate}" volume="${vol}">${escapeXml(text)}</prosody></speak>`;
+function toSSML(text, settings, pauseMs) {
+  const pitch = settings.pitch || "0%";
+  const rate = settings.rate || "0%";
+  const vol = settings.volume || "medium";
+
+  // Break text into sentences if no explicit pauseMs
+  let processed = escapeXml(text);
+  if (!pauseMs) {
+    processed = processed.replace(/([.?!])\s+/g, "$1 <break time=\"600ms\"/> ");
+  }
+  const breakTag = pauseMs ? `<break time="${pauseMs}ms"/>` : "";
+
+  return `<speak><prosody pitch="${pitch}" rate="${rate}" volume="${vol}">${processed}${breakTag}</prosody></speak>`;
 }
 
 function escapeXml(s) {
@@ -294,10 +264,9 @@ app.post("/vapi-webhook", (req, res) => {
   if (typeof userInput === "string" && userInput.trim()) handleTransition(session, userInput);
 
   const current = salesFlow.states[session.state];
-
   if (!current) {
-    // fallback catch-all
-    const text = "I didn’t quite catch that. For assistance, you can also call our support line at 1-866-379-5131.";
+    const text =
+      "I didn’t quite catch that. For assistance, you can also call our support line at 1-866-379-5131.";
     const settings = toneMap.neutral;
     return res.json({
       say: text,
@@ -305,21 +274,22 @@ app.post("/vapi-webhook", (req, res) => {
       voice: settings,
       ssml: toSSML(text, settings),
       format: "ssml",
-      end: false
+      end: false,
     });
   }
 
   const tone = current.tone || "neutral";
   const settings = toneMap[tone] || toneMap.neutral;
   const text = current.say || "Let’s continue.";
+  const pauseMs = current.pauseMs || 0;
 
   return res.json({
     say: text,
     tone,
     voice: settings,
-    ssml: toSSML(text, settings),
+    ssml: toSSML(text, settings, pauseMs),
     format: "ssml",
-    end: !!current.end
+    end: !!current.end,
   });
 });
 
