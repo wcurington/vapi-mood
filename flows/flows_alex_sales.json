@@ -1,8 +1,7 @@
 {
   "meta": {
-    "version": "2.0",
+    "version": "2.1",
     "hotline": "1-866-379-5131",
-    "org": "Health America",
     "tools": {
       "kb_csv": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv",
       "kb_query": "query_KB.tool.json",
@@ -10,59 +9,58 @@
       "mood_api": "Alex-mood"
     },
     "tones": {
-      "enthusiastic": { "pitch": "+5%", "rate": "+15%", "volume": "loud" },
-      "empathetic": { "pitch": "-5%", "rate": "-10%", "volume": "soft" },
-      "authoritative": { "pitch": "-3%", "rate": "0%", "volume": "loud" },
-      "calm_confidence": { "pitch": "0%", "rate": "-5%", "volume": "medium" },
-      "absolute_certainty": { "pitch": "-8%", "rate": "-5%", "volume": "x-loud" },
-      "neutral": { "pitch": "0%", "rate": "0%", "volume": "medium" }
-    },
-    "currencySpeechRule": "Speak prices like a human: 'eighty nine ninety nine'. Never say 'point'. If SSML is available, prefer <say-as interpret-as=\"currency\"> when reading final totals.",
-    "pricing": {
-      "monthly_sub": 79.99,
-      "one_time": 89.99,
-      "pack_3": 199.99,
-      "pack_6": 299.99,
-      "annual_12": 499.99,
-      "postdate_allowed": true
-    },
-    "bundles": {
-      "twelve_mix": {
-        "title": "12-Item Annual Mix",
-        "description": "Any 12 items (e.g., 6 Marine Phytoplankton + 6 Açaí) for one flat annual price.",
-        "price": 499.99,
-        "notes": "Encourage equal splits across two top-fit products for the goal."
+      "enthusiastic": {
+        "pitch": "+5%",
+        "rate": "+15%",
+        "volume": "loud"
+      },
+      "empathetic": {
+        "pitch": "-5%",
+        "rate": "-10%",
+        "volume": "soft"
+      },
+      "authoritative": {
+        "pitch": "-3%",
+        "rate": "0%",
+        "volume": "loud"
+      },
+      "calm_confidence": {
+        "pitch": "0%",
+        "rate": "-5%",
+        "volume": "medium"
+      },
+      "absolute_certainty": {
+        "pitch": "-8%",
+        "rate": "-5%",
+        "volume": "x-loud"
+      },
+      "neutral": {
+        "pitch": "0%",
+        "rate": "0%",
+        "volume": "medium"
       }
     },
-    "products": [
-      { "id": "marine_phytoplankton", "name": "Marine Phytoplankton", "forms": ["capsule", "powder"], "category": "Energy / Metabolism" },
-      { "id": "acai_powder", "name": "Açaí Powder", "forms": ["powder"], "category": "Antioxidant / Weight" },
-      { "id": "joint_complex", "name": "Joint Complex", "forms": ["capsule"], "category": "Joint & Mobility" },
-      { "id": "blood_sugar_balance", "name": "Blood Sugar Balance", "forms": ["capsule"], "category": "Blood Sugar Support" },
-      { "id": "cardio_support", "name": "Cardio Support", "forms": ["capsule"], "category": "Cardiovascular" },
-      { "id": "brain_focus", "name": "Brain Focus", "forms": ["capsule"], "category": "Cognitive" },
-      { "id": "sleep_restore", "name": "Sleep Restore", "forms": ["capsule"], "category": "Sleep" },
-      { "id": "immune_guard", "name": "Immune Guard", "forms": ["capsule"], "category": "Immune" },
-      { "id": "respiratory_relief", "name": "Respiratory Relief", "forms": ["capsule"], "category": "Respiratory" },
-      { "id": "vision_plus", "name": "Vision Plus", "forms": ["capsule"], "category": "Vision" },
-      { "id": "energy_metabolism", "name": "Energy & Metabolism", "forms": ["capsule"], "category": "Energy / Metabolism" },
-      { "id": "stress_mood", "name": "Stress & Mood Adaptogens", "forms": ["capsule"], "category": "Stress & Mood" }
-    ],
-    "routingNotes": "Primary category is chosen by severity or risk flags; secondary for synergy. Value-building pulls from KB fields: Benefits to Desired Outcomes + Key Benefits."
+    "currencySpeechRule": "Speak prices naturally (eighty-nine ninety-nine). Avoid 'point'. Use SSML say-as=currency if available.",
+    "priceGrid": {
+      "membership": 79.99,
+      "one_time": 89.99,
+      "three_pack": 199.99,
+      "six_pack": 299.99,
+      "annual_12": 499.99,
+      "post_date": 0
+    }
   },
-
   "states": {
     "start": {
-      "say": "Hello, this is Alex with Health America. How are you doing today?",
+      "say": "Hello, this is Alex with Health America. How are you today?",
       "tone": "enthusiastic",
-      "pauseMs": 600,
+      "pauseMs": 900,
       "next": "reason_for_call"
     },
-
     "reason_for_call": {
       "say": "The reason I’m calling is to follow up on the information we sent out. Did you get that okay?",
       "tone": "enthusiastic",
-      "pauseMs": 400,
+      "pauseMs": 900,
       "branches": {
         "yes": "qualify_intro",
         "no": "qualify_intro",
@@ -70,604 +68,3517 @@
         "hesitate": "qualify_intro"
       }
     },
-
     "hotline_offer": {
-      "say": "Absolutely. Our customer care and reorder line is one eight six six… three seven nine… five one three one. Repeating normally: 1-866-379-5131. I can also help you right now—would you like me to handle this for you?",
+      "say": "Absolutely. Our customer care and reorder line is one eight six six… three seven nine… five one three one. I'll repeat that: 1-866-379-5131. I can also help you right now—would you like me to take care of this for you?",
       "tone": "empathetic",
-      "pauseMs": 400,
-      "branches": { "yes": "qualify_intro", "no": "farewell_soft" }
+      "pauseMs": 900,
+      "branches": {
+        "yes": "qualify_intro",
+        "no": "farewell_soft"
+      }
     },
-
+    "farewell_soft": {
+      "say": "Thank you for your time today. If you need anything or want to reorder later, we’re at 1-866-379-5131.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "end": true
+    },
     "qualify_intro": {
-      "say": "Great—I’ll ask short questions one at a time so I can tailor the recommendation for you.",
+      "say": "Great—let me ask a few quick questions to better understand your health. I’ll keep it simple and quick.",
       "tone": "curious",
-      "pauseMs": 300,
-      "next": "q_joint_any"
+      "pauseMs": 900,
+      "next": "q_joint_intro"
     },
-
-    "q_joint_any": {
+    "q_joint_intro": {
+      "say": "Let’s start with joints and work through a few quick areas. I’ll keep it easy.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_1"
+    },
+    "q_joint_block_intro": {
+      "say": "Now a quick check on joint.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_joint_have"
+    },
+    "q_joint_have": {
       "say": "Do you have arthritis or joint pain and stiffness?",
       "tone": "curious",
-      "capture": "joint_pain_any",
-      "pauseMs": 700,
-      "next": "ack_joint_any"
+      "pauseMs": 900,
+      "capture": "joint_pain",
+      "next": "q_joint_scale"
     },
-    "ack_joint_any": {
-      "say": "Got it, thank you.",
+    "q_joint_have_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_joint_pain_scale"
+      "pauseMs": 900,
+      "next": "q_joint_scale"
     },
-    "q_joint_pain_scale": {
-      "say": "On a scale of one to ten, what’s your joint pain today?",
+    "q_joint_scale": {
+      "say": "On a scale of one to ten, where is your discomfort today?",
       "tone": "curious",
-      "capture": "joint_pain_scale",
-      "pauseMs": 700,
-      "next": "ack_joint_scale"
+      "pauseMs": 900,
+      "capture": "pain_level",
+      "next": "q_joint_morn"
     },
-    "ack_joint_scale": {
-      "say": "Thank you, that helps.",
+    "q_joint_scale_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_age_exact"
+      "pauseMs": 900,
+      "next": "q_joint_morn"
     },
-
-    "q_age_exact": {
-      "say": "If you don’t mind me asking, how old are you?",
+    "q_joint_morn": {
+      "say": "Are mornings stiff, and does movement help?",
       "tone": "curious",
-      "capture": "age_years",
-      "pauseMs": 700,
-      "next": "ack_age"
+      "pauseMs": 900,
+      "capture": "mobility_pattern",
+      "next": "q_joint_flare"
     },
-    "ack_age": {
-      "say": "Appreciate it—you sound great.",
+    "q_joint_morn_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 250,
+      "pauseMs": 900,
+      "next": "q_joint_flare"
+    },
+    "q_joint_flare": {
+      "say": "Any flare-ups tied to weather or activity?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "flare_triggers"
+    },
+    "q_joint_flare_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_diabetes_block_intro"
+    },
+    "q_diabetes_block_intro": {
+      "say": "Now a quick check on diabetes.",
+      "tone": "curious",
+      "pauseMs": 900,
       "next": "q_diabetes_have"
     },
-
     "q_diabetes_have": {
-      "say": "Do you deal with diabetes of any kind—yes or no?",
+      "say": "Do you deal with diabetes?",
       "tone": "curious",
-      "capture": "diabetes_have",
-      "pauseMs": 700,
-      "branches": { "yes": "q_diabetes_type", "no": "q_energy_level", "hesitate": "q_energy_level" }
+      "pauseMs": 900,
+      "capture": "diabetes_yesno",
+      "next": "q_diabetes_type"
+    },
+    "q_diabetes_have_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_diabetes_type"
     },
     "q_diabetes_type": {
       "say": "Is it type one or type two?",
       "tone": "curious",
+      "pauseMs": 900,
       "capture": "diabetes_type",
-      "pauseMs": 600,
-      "next": "ack_diabetes_type"
+      "next": "q_diabetes_managed"
     },
-    "ack_diabetes_type": {
-      "say": "Thanks. Is it managed well right now?",
-      "tone": "curious",
-      "capture": "diabetes_managed",
-      "pauseMs": 700,
-      "next": "q_diabetes_meds"
-    },
-    "q_diabetes_meds": {
-      "say": "What do you currently take for it, if anything?",
-      "tone": "curious",
-      "capture": "diabetes_meds",
-      "pauseMs": 800,
-      "next": "ack_diabetes"
-    },
-    "ack_diabetes": {
-      "say": "Thank you, that gives me a clearer picture.",
+    "q_diabetes_type_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 250,
+      "pauseMs": 900,
+      "next": "q_diabetes_managed"
+    },
+    "q_diabetes_managed": {
+      "say": "Is it currently managed? What do you take?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "diabetes_meds",
+      "next": "q_diabetes_a1c"
+    },
+    "q_diabetes_managed_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_diabetes_a1c"
+    },
+    "q_diabetes_a1c": {
+      "say": "Do you know your latest A1C or fasting glucose?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "diabetes_a1c"
+    },
+    "q_diabetes_a1c_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_energy_block_intro"
+    },
+    "q_energy_block_intro": {
+      "say": "Now a quick check on energy.",
+      "tone": "curious",
+      "pauseMs": 900,
       "next": "q_energy_level"
     },
-
     "q_energy_level": {
-      "say": "How are your energy levels day to day—low, medium, or high?",
+      "say": "How are your overall energy levels day to day?",
       "tone": "curious",
+      "pauseMs": 900,
       "capture": "energy_level",
-      "pauseMs": 700,
-      "next": "ack_energy"
+      "next": "q_energy_crash"
     },
-    "ack_energy": {
-      "say": "Got it.",
+    "q_energy_level_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_breathing_issue"
+      "pauseMs": 900,
+      "next": "q_energy_crash"
     },
-
-    "q_breathing_issue": {
-      "say": "Any breathing issues or shortness of breath—yes or no?",
+    "q_energy_crash": {
+      "say": "Any afternoon crashes or tough mornings?",
       "tone": "curious",
+      "pauseMs": 900,
+      "capture": "energy_pattern",
+      "next": "q_energy_caffeine"
+    },
+    "q_energy_crash_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_energy_caffeine"
+    },
+    "q_energy_caffeine": {
+      "say": "Do you lean on coffee or energy drinks?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "caffeine_use"
+    },
+    "q_energy_caffeine_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_sleep_block_intro"
+    },
+    "q_sleep_block_intro": {
+      "say": "Now a quick check on sleep.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_sleep_quality"
+    },
+    "q_sleep_quality": {
+      "say": "Is your sleep restful and consistent?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "sleep_quality",
+      "next": "q_sleep_issue"
+    },
+    "q_sleep_quality_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_sleep_issue"
+    },
+    "q_sleep_issue": {
+      "say": "Trouble falling asleep, staying asleep, or both?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "sleep_issue",
+      "next": "q_sleep_hours"
+    },
+    "q_sleep_issue_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_sleep_hours"
+    },
+    "q_sleep_hours": {
+      "say": "Roughly how many hours per night?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "sleep_hours"
+    },
+    "q_sleep_hours_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_bp_block_intro"
+    },
+    "q_bp_block_intro": {
+      "say": "Now a quick check on bp.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_bp_have"
+    },
+    "q_bp_have": {
+      "say": "Has a doctor said your blood pressure is elevated?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "bp_yesno",
+      "next": "q_bp_meds"
+    },
+    "q_bp_have_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_bp_meds"
+    },
+    "q_bp_meds": {
+      "say": "Are you taking any meds for it?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "bp_meds",
+      "next": "q_bp_read"
+    },
+    "q_bp_meds_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_bp_read"
+    },
+    "q_bp_read": {
+      "say": "Do you monitor at home—any recent readings?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "bp_recent"
+    },
+    "q_bp_read_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_cognitive_block_intro"
+    },
+    "q_cognitive_block_intro": {
+      "say": "Now a quick check on cognitive.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_cognitive_fog"
+    },
+    "q_cognitive_fog": {
+      "say": "Do you deal with brain fog or trouble focusing?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "cognitive_fog",
+      "next": "q_cognitive_memory"
+    },
+    "q_cognitive_fog_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_cognitive_memory"
+    },
+    "q_cognitive_memory": {
+      "say": "Any memory issues—short-term recall or names?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "cognitive_memory",
+      "next": "q_cognitive_balance"
+    },
+    "q_cognitive_memory_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_cognitive_balance"
+    },
+    "q_cognitive_balance": {
+      "say": "Any balance concerns or dizziness?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "cognitive_balance"
+    },
+    "q_cognitive_balance_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_immune_block_intro"
+    },
+    "q_immune_block_intro": {
+      "say": "Now a quick check on immune.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_immune_freq"
+    },
+    "q_immune_freq": {
+      "say": "Do you catch colds or the flu often?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "immune_freq",
+      "next": "q_immune_allergy"
+    },
+    "q_immune_freq_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_immune_allergy"
+    },
+    "q_immune_allergy": {
+      "say": "Any sinus issues or allergies?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "immune_allergy",
+      "next": "q_immune_recover"
+    },
+    "q_immune_allergy_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_immune_recover"
+    },
+    "q_immune_recover": {
+      "say": "When sick, do you bounce back quickly?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "immune_recovery"
+    },
+    "q_immune_recover_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_breathing_block_intro"
+    },
+    "q_breathing_block_intro": {
+      "say": "Now a quick check on breathing.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_breathing_sob"
+    },
+    "q_breathing_sob": {
+      "say": "Any breathing issues or shortness of breath?",
+      "tone": "curious",
+      "pauseMs": 900,
       "capture": "breathing_issue",
-      "pauseMs": 700,
-      "next": "ack_breathing"
+      "next": "q_breathing_pattern"
     },
-    "ack_breathing": {
-      "say": "Thank you.",
+    "q_breathing_sob_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_sleep_restful"
+      "pauseMs": 900,
+      "next": "q_breathing_pattern"
     },
-
-    "q_sleep_restful": {
-      "say": "Do you feel your sleep is restful—yes or no?",
+    "q_breathing_pattern": {
+      "say": "Is it seasonal, exertion-related, or frequent?",
       "tone": "curious",
-      "capture": "sleep_restful",
-      "pauseMs": 700,
-      "next": "ack_sleep"
+      "pauseMs": 900,
+      "capture": "breathing_pattern"
     },
-    "ack_sleep": {
-      "say": "Understood.",
+    "q_breathing_pattern_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_hearing_ok"
+      "pauseMs": 900,
+      "next": "q_weight_block_intro"
     },
-
-    "q_hearing_ok": {
-      "say": "How is your hearing—would you say okay or not great?",
+    "q_weight_block_intro": {
+      "say": "Now a quick check on weight.",
       "tone": "curious",
-      "capture": "hearing_status",
-      "pauseMs": 700,
-      "next": "ack_hearing"
+      "pauseMs": 900,
+      "next": "q_weight_happy"
     },
-    "ack_hearing": {
-      "say": "Thanks.",
-      "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_vision_ok"
-    },
-
-    "q_vision_ok": {
-      "say": "How is your vision—okay or not great?",
+    "q_weight_happy": {
+      "say": "Are you happy with your current weight?",
       "tone": "curious",
-      "capture": "vision_status",
-      "pauseMs": 700,
-      "next": "ack_vision"
-    },
-    "ack_vision": {
-      "say": "Thanks for letting me know.",
-      "tone": "empathetic",
-      "pauseMs": 200,
+      "pauseMs": 900,
+      "capture": "weight_ok",
       "next": "q_weight_goal"
     },
-
+    "q_weight_happy_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_weight_goal"
+    },
     "q_weight_goal": {
-      "say": "Are you happy with your current weight? About how many pounds would you ideally like to lose, if any?",
+      "say": "About how many pounds would you change?",
       "tone": "curious",
+      "pauseMs": 900,
       "capture": "weight_goal_lbs",
+      "next": "q_weight_crave"
+    },
+    "q_weight_goal_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
       "pauseMs": 900,
-      "next": "ack_weight"
+      "next": "q_weight_crave"
     },
-    "ack_weight": {
-      "say": "Got it.",
-      "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_bp_any"
-    },
-
-    "q_bp_any": {
-      "say": "Do you have elevated blood pressure or take anything for it—yes or no?",
+    "q_weight_crave": {
+      "say": "Any cravings or late snacking?",
       "tone": "curious",
-      "capture": "bp_any",
-      "pauseMs": 700,
-      "branches": { "yes": "q_bp_med", "no": "q_cognitive_any", "hesitate": "q_cognitive_any" }
-    },
-    "q_bp_med": {
-      "say": "What do you take or do to manage it?",
-      "tone": "curious",
-      "capture": "bp_meds",
-      "pauseMs": 800,
-      "next": "ack_bp"
-    },
-    "ack_bp": {
-      "say": "Thanks for clarifying.",
-      "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_cognitive_any"
-    },
-
-    "q_cognitive_any": {
-      "say": "Any memory or balance issues—brain fog or trouble focusing?",
-      "tone": "curious",
-      "capture": "cognitive_issue",
       "pauseMs": 900,
-      "next": "ack_cognitive"
+      "capture": "weight_cravings"
     },
-    "ack_cognitive": {
-      "say": "Thank you.",
+    "q_weight_crave_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 200,
-      "next": "q_immune_any"
-    },
-
-    "q_immune_any": {
-      "say": "Are you prone to colds, the flu, or seasonal allergies or sinus issues—yes or no?",
-      "tone": "curious",
-      "capture": "immune_issue",
       "pauseMs": 900,
-      "next": "ack_immune"
+      "next": "q_senses_block_intro"
     },
-    "ack_immune": {
-      "say": "Appreciate your answers—this helps me get it right.",
+    "q_senses_block_intro": {
+      "say": "Now a quick check on senses.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_senses_hearing"
+    },
+    "q_senses_hearing": {
+      "say": "How is your hearing—any ringing or muffled sounds?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "hearing_issue",
+      "next": "q_senses_vision"
+    },
+    "q_senses_hearing_ack": {
+      "say": "Thanks—appreciate the clarity.",
       "tone": "empathetic",
-      "pauseMs": 300,
+      "pauseMs": 900,
+      "next": "q_senses_vision"
+    },
+    "q_senses_vision": {
+      "say": "How is your vision—dryness, strain, or floaters?",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "vision_issue"
+    },
+    "q_senses_vision_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_age_block_intro"
+    },
+    "q_age_block_intro": {
+      "say": "Now a quick check on age.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "next": "q_age_ask"
+    },
+    "q_age_ask": {
+      "say": "If you don’t mind sharing—how old are you? You sound younger.",
+      "tone": "curious",
+      "pauseMs": 900,
+      "capture": "age_years"
+    },
+    "q_age_ask_ack": {
+      "say": "Thanks—appreciate the clarity.",
+      "tone": "empathetic",
+      "pauseMs": 900,
       "next": "needs_confirm"
     },
-
     "needs_confirm": {
-      "say": "From what you’ve shared, we’ll focus first on {{primary_goal}} and also support {{secondary_goal}}. Sound right?",
+      "say": "From what you’ve shared, we’ll prioritize your top concern first: {{primary_goal}}. We’ll also address {{secondary_goal}} as we build your plan.",
       "tone": "empathetic",
-      "logic": "resolve_primary_secondary_goals",
-      "pauseMs": 400,
-      "next": "kb_value_pull"
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_1",
+      "logic": "resolve_primary_secondary_goals"
     },
-
-    "kb_value_pull": {
-      "say": "Let me match the best fit from our line and summarize the benefits in simple terms.",
+    "kb_select": {
+      "say": "Let me match you with the best-fit formula and format—capsule or powder when available.",
       "tone": "authoritative",
-      "toolCall": { "tool": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv", "intent": "map_flags_to_products" },
-      "pauseMs": 300,
-      "next": "value_story_pitch"
+      "pauseMs": 900,
+      "next": "value_story_pitch",
+      "toolCall": {
+        "tool": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv",
+        "intent": "map_flags_to_products"
+      }
     },
-
     "value_story_pitch": {
-      "say": "Based on your goals, the best fit is {{primary_product}} in {{primary_form}}. It supports {{benefits_to_outcomes}}—for example, {{key_benefits}}—so you can {{tangible_outcome}}. Most customers also pair it with {{upsell_product}} to reinforce {{upsell_benefit}} and get faster, longer-lasting results.",
+      "say": "Based on what you’ve shared, the best fit is {{primary_product}} in {{primary_form}}. It supports {{benefits_to_outcomes}}—for example, {{key_benefits}}—so you can {{tangible_outcome}}. Pairing with {{upsell_product}} helps {{upsell_benefit}} for comprehensive results.",
       "tone": "enthusiastic",
-      "pauseMs": 400,
-      "next": "trial_close"
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_1"
     },
-
     "trial_close": {
-      "say": "That’s the direction you were hoping for, yes?",
+      "say": "That lines up with what you were hoping for, doesn’t it?",
       "tone": "calm_confidence",
-      "pauseMs": 400,
+      "pauseMs": 900,
       "branches": {
-        "yes": "offer_menu",
+        "yes": "offer_choice",
         "service": "hotline_offer",
         "hesitate": "objection_router"
       }
     },
-
     "objection_router": {
-      "say": "I completely understand.",
+      "say": "I completely understand. Let me address that directly.",
       "tone": "empathetic",
-      "logic": "identify_objection",
-      "pauseMs": 200,
-      "next": "objection_handle"
+      "pauseMs": 900,
+      "next": "objection_handle",
+      "logic": "identify_objection"
     },
     "objection_handle": {
       "say": "{{objection_reply}}",
       "tone": "authoritative",
-      "pauseMs": 300,
+      "pauseMs": 900,
       "next": "trial_close"
     },
-
-    "offer_menu": {
-      "say": "Let’s get you the best value. You can start with a monthly membership at {{price_monthly_sub_human}} and save on every shipment, go with a larger value pack like the six-pack at {{price_6_human}}, or maximize value with our 12-item annual at {{price_12_human}}. We can also do a one-time at {{price_one_human}} or a three-pack at {{price_3_human}}—your call.",
+    "offer_choice": {
+      "say": "Excellent. For the best value, most choose either the six-pack at two ninety-nine ninety-nine, or the membership at seventy-nine ninety-nine monthly. Which way do you lean?",
       "tone": "authoritative",
-      "logic": "format_human_currency",
-      "pauseMs": 600,
-      "next": "offer_choice_primary"
-    },
-
-    "offer_choice_primary": {
-      "say": "Which makes the most sense for you—monthly membership, six-pack, or the 12-item annual?",
-      "tone": "calm_confidence",
-      "capture": "offer_primary_choice",
-      "pauseMs": 800,
-      "branches": {
-        "annual_12": "bundle_suggest",
-        "pack_6": "form_select_primary",
-        "monthly_sub": "form_select_primary",
-        "one_time": "form_select_primary",
-        "pack_3": "form_select_primary",
-        "hesitate": "offer_reassure"
-      }
-    },
-    "offer_reassure": {
-      "say": "No rush—I’ll keep this simple. The six-pack and annual give you the strongest savings and consistency. Which of those feels right?",
-      "tone": "empathetic",
-      "pauseMs": 500,
-      "next": "offer_choice_primary"
-    },
-
-    "bundle_suggest": {
-      "say": "Great pick. With the 12-item annual at {{price_12_human}}, most customers split between two top fit products, like six {{primary_product}} and six {{bundle_partner}}. Would you like that combo?",
-      "tone": "authoritative",
-      "logic": "suggest_bundle_partner",
-      "pauseMs": 600,
-      "branches": {
-        "yes": "form_select_primary",
-        "no": "bundle_customize"
-      }
-    },
-    "bundle_customize": {
-      "say": "No problem—how would you like to split your 12 items? For example, 4 and 8, or 6 and 6—your choice.",
-      "tone": "calm_confidence",
-      "capture": "bundle_split_plan",
       "pauseMs": 900,
-      "next": "form_select_primary"
+      "branches": {
+        "membership": "price_membership",
+        "one_time": "price_one_time",
+        "three_pack": "price_three_pack",
+        "six_pack": "price_six_pack",
+        "annual_12": "price_annual_12",
+        "post_date": "price_post_date",
+        "bundle": "bundle_builder",
+        "unsure": "price_coach"
+      },
+      "next": "offer_choice_pause_1"
     },
-
-    "form_select_primary": {
-      "say": "For {{primary_product}}, do you prefer {{primary_forms_list}}?",
+    "price_coach": {
+      "say": "Quick rundown: membership is seventy-nine ninety-nine monthly; one-time is eighty-nine ninety-nine; three is one ninety-nine ninety-nine; six is two ninety-nine ninety-nine; annual twelve is four ninety-nine ninety-nine. Post-date lets us lock it in and process on your date.",
       "tone": "authoritative",
-      "logic": "list_forms_for_primary",
-      "capture": "primary_form_choice",
-      "pauseMs": 800,
-      "next": "form_select_secondary"
+      "pauseMs": 900,
+      "next": "offer_choice"
     },
-    "form_select_secondary": {
-      "say": "And for {{upsell_product}}, do you prefer {{upsell_forms_list}}?",
+    "price_membership": {
+      "say": "Great—membership is seventy-nine ninety-nine today and monthly. No shipping or taxes; bonus gift included.",
       "tone": "authoritative",
-      "logic": "list_forms_for_upsell",
-      "capture": "upsell_form_choice",
-      "pauseMs": 800,
+      "pauseMs": 900,
       "next": "identity_intro"
     },
-
-    "identity_intro": {
-      "say": "Excellent—I’ll take care of all details and confirm back as we go.",
+    "price_one_time": {
+      "say": "One-time today is eighty-nine ninety-nine total. No shipping or taxes.",
       "tone": "authoritative",
-      "pauseMs": 300,
-      "next": "name_on_card"
+      "pauseMs": 900,
+      "next": "identity_intro"
     },
-
+    "price_three_pack": {
+      "say": "Three-pack is one ninety-nine ninety-nine total. No shipping or taxes.",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro"
+    },
+    "price_six_pack": {
+      "say": "Six-pack is two ninety-nine ninety-nine total—top pick for results and savings.",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro"
+    },
+    "price_annual_12": {
+      "say": "Annual—twelve units—for four ninety-nine ninety-nine, best yearly value.",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro"
+    },
+    "price_post_date": {
+      "say": "We’ll secure the order now and process on your date; you won’t be charged until then.",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro"
+    },
+    "post_date_capture": {
+      "say": "Please give me the exact date to process—month, day, and year.",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro",
+      "capture": "post_date"
+    },
+    "bundle_builder": {
+      "say": "We can do a twelve-unit bundle like six Marine Phytoplankton plus six Açaí Powder for four ninety-nine ninety-nine total. Which two products and counts would you like to pair for twelve total units?",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro",
+      "capture": "bundle_selection"
+    },
+    "identity_intro": {
+      "say": "Perfect—I’ll take care of the details and read everything back clearly as we go.",
+      "tone": "authoritative",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_1"
+    },
     "name_on_card": {
       "say": "First, what’s your full name exactly as it appears on the card?",
       "tone": "authoritative",
-      "capture": "creditCardName",
       "pauseMs": 900,
+      "capture": "creditCardName",
       "next": "billing_street"
     },
     "billing_street": {
-      "say": "Billing street address—include apartment or unit if any?",
+      "say": "What’s the billing street address for the card? Include apartment or unit if any.",
       "tone": "authoritative",
-      "capture": "billAddress1",
       "pauseMs": 900,
+      "capture": "billAddress1",
       "next": "billing_city"
     },
     "billing_city": {
       "say": "Billing city?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "billCity",
-      "pauseMs": 700,
       "next": "billing_state"
     },
     "billing_state": {
       "say": "Billing state?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "billState",
-      "pauseMs": 700,
       "next": "billing_zip"
     },
     "billing_zip": {
       "say": "Billing ZIP?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "billZip",
-      "pauseMs": 700,
       "next": "shipping_same"
     },
-
     "shipping_same": {
       "say": "Is the shipping address the same as billing?",
       "tone": "authoritative",
-      "pauseMs": 600,
-      "branches": { "yes": "contact_phone", "no": "shipping_street" }
+      "pauseMs": 900,
+      "branches": {
+        "yes": "contact_phone",
+        "no": "shipping_street"
+      }
     },
     "shipping_street": {
-      "say": "Shipping street address?",
+      "say": "What’s the shipping street address?",
       "tone": "authoritative",
-      "capture": "shipAddress1",
       "pauseMs": 900,
+      "capture": "shipAddress1",
       "next": "shipping_city"
     },
     "shipping_city": {
       "say": "Shipping city?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "shipCity",
-      "pauseMs": 700,
       "next": "shipping_state"
     },
     "shipping_state": {
       "say": "Shipping state?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "shipState",
-      "pauseMs": 700,
       "next": "shipping_zip"
     },
     "shipping_zip": {
       "say": "Shipping ZIP?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "shipZip",
-      "pauseMs": 700,
       "next": "contact_phone"
     },
-
     "contact_phone": {
-      "say": "Best phone number for updates and delivery questions?",
+      "say": "What’s the best phone number for updates? I’ll read it back for accuracy.",
       "tone": "authoritative",
-      "capture": "customerAltPhone",
       "pauseMs": 900,
-      "next": "contact_email"
+      "next": "contact_email",
+      "capture": "customerAltPhone"
     },
     "contact_email": {
-      "say": "Best email for your receipt and tracking?",
+      "say": "What’s the best email for your receipt and tracking?",
       "tone": "authoritative",
-      "capture": "customerEmail",
       "pauseMs": 900,
-      "next": "payment_method"
+      "next": "payment_method",
+      "capture": "customerEmail"
     },
-
     "payment_method": {
       "say": "Which payment method works best—card or bank?",
       "tone": "authoritative",
-      "pauseMs": 600,
-      "branches": { "card": "card_number", "bank": "bank_account_name", "service": "hotline_offer", "hesitate": "payment_reassure" }
+      "pauseMs": 900,
+      "branches": {
+        "card": "card_number",
+        "bank": "bank_account_name",
+        "service": "hotline_offer",
+        "hesitate": "payment_reassure"
+      }
     },
     "payment_reassure": {
-      "say": "All orders are covered by our money-back guarantee, and there are no shipping fees or taxes. We’ll keep this simple.",
+      "say": "You’re fully covered by our money-back guarantee. No shipping or taxes, and we’ll keep this quick.",
       "tone": "empathetic",
-      "pauseMs": 500,
+      "pauseMs": 900,
       "next": "payment_method"
     },
-
     "card_number": {
-      "say": "Please read me the full card number—I'll confirm it back once, in groups, to ensure accuracy.",
+      "say": "Please read the full card number. I’ll confirm it back once, grouped for accuracy.",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "creditCardNumber",
-      "pauseMs": 1200,
       "next": "card_exp_mo"
     },
     "card_exp_mo": {
       "say": "Expiration month?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "creditCardExpMonth",
-      "pauseMs": 700,
       "next": "card_exp_yr"
     },
     "card_exp_yr": {
       "say": "Expiration year?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "creditCardExpYear",
-      "pauseMs": 700,
       "next": "card_cvc"
     },
     "card_cvc": {
-      "say": "CVC on the back? You’ll say it once.",
+      "say": "CVC on the back of the card? You’ll say it once.",
       "tone": "authoritative",
-      "capture": "creditCardCVC",
-      "pauseMs": 700,
-      "next": "postdate_offer"
+      "pauseMs": 900,
+      "capture": "creditCardCVC"
     },
-
     "bank_account_name": {
-      "say": "Name on the bank account?",
+      "say": "What name is on the bank account?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "bankAccountName",
-      "pauseMs": 800,
       "next": "bank_routing"
     },
     "bank_routing": {
       "say": "Routing number?",
       "tone": "authoritative",
+      "pauseMs": 900,
       "capture": "bankRoutingNumber",
-      "pauseMs": 800,
       "next": "bank_account"
     },
     "bank_account": {
       "say": "Account number?",
       "tone": "authoritative",
-      "capture": "bankAccountNumber",
       "pauseMs": 900,
-      "next": "postdate_offer"
+      "capture": "bankAccountNumber"
     },
-
-    "postdate_offer": {
-      "say": "If timing is tight, I can schedule your billing for a future date and reserve today’s deal. Would you like to post-date the charge?",
-      "tone": "empathetic",
-      "pauseMs": 700,
-      "branches": { "yes": "postdate_capture", "no": "price_total" }
-    },
-    "postdate_capture": {
-      "say": "What date should we process the payment?",
-      "tone": "authoritative",
-      "capture": "postdate_iso",
-      "pauseMs": 800,
-      "next": "price_total"
-    },
-
     "price_total": {
-      "say": "For your selection {{humanized_selection}}, your total today comes to {{human_price}}—with no shipping fees and no taxes.",
+      "say": "For your {{product_choice_statement}}, your total comes to {{human_price}}—no shipping fees and no taxes.",
       "tone": "authoritative",
-      "logic": "compute_total_and_humanize",
-      "pauseMs": 700,
-      "next": "readback_header"
+      "pauseMs": 900,
+      "next": "readback_confirm",
+      "logic": "format_human_currency"
     },
-
-    "readback_header": {
-      "say": "Let me read that back to make sure I have everything correct.",
-      "tone": "calm_confidence",
-      "pauseMs": 400,
-      "next": "readback_name"
-    },
-    "readback_name": {
-      "say": "Name on card: {{creditCardName}}.",
+    "readback_confirm": {
+      "say": "Let me read that back to make sure I’ve got it correct: {{readback_block}}. Is everything correct?",
       "tone": "authoritative",
-      "pauseMs": 300,
-      "next": "readback_billing"
+      "pauseMs": 900,
+      "branches": {
+        "yes": "capture_sale",
+        "no": "correct_details",
+        "service": "hotline_offer",
+        "hesitate": "readback_clarify"
+      },
+      "next": "readback_confirm_pause_1"
     },
-    "readback_billing": {
-      "say": "Billing: {{billAddress1}}, {{billCity}}, {{billState}} {{billZip}}.",
-      "tone": "authoritative",
-      "pauseMs": 300,
-      "next": "readback_shipping"
-    },
-    "readback_shipping": {
-      "say": "Shipping: {{shipAddress1_or_billing}}, {{shipCity_or_billing}}, {{shipState_or_billing}} {{shipZip_or_billing}}.",
-      "tone": "authoritative",
-      "pauseMs": 300,
-      "next": "readback_contact"
-    },
-    "readback_contact": {
-      "say": "Contact: phone {{customerAltPhone}}, email {{customerEmail}}.",
-      "tone": "authoritative",
-      "pauseMs": 300,
-      "next": "readback_payment"
-    },
-    "readback_payment": {
-      "say": "Payment: card ending in {{cc_last4}} {{or_bank_mask}}.",
-      "tone": "authoritative",
-      "pauseMs": 300,
-      "next": "readback_selection"
-    },
-    "readback_selection": {
-      "say": "Items: {{readable_bundle_or_single}}.",
-      "tone": "authoritative",
-      "pauseMs": 350,
+    "readback_clarify": {
+      "say": "No problem—what should I correct or update for you?",
+      "tone": "empathetic",
+      "pauseMs": 900,
       "next": "readback_confirm"
     },
-
-    "readback_confirm": {
-      "say": "Is everything I read back correct?",
-      "tone": "calm_confidence",
-      "pauseMs": 400,
-      "branches": { "yes": "capture_sale", "no": "readback_fix", "service": "hotline_offer" }
-    },
-    "readback_fix": {
-      "say": "No problem—what needs to be corrected?",
+    "correct_details": {
+      "say": "Thank you. Let’s update that now, and I’ll confirm again.",
       "tone": "empathetic",
-      "capture": "readback_correction",
       "pauseMs": 900,
-      "next": "readback_header"
+      "next": "readback_confirm"
     },
-
     "capture_sale": {
       "say": "Perfect—processing now. You’ll receive an email receipt and tracking.",
       "tone": "absolute_certainty",
-      "toolCall": { "tool": "log.sale.google.tool.json", "intent": "append_saleslog12" },
-      "pauseMs": 500,
+      "pauseMs": 900,
+      "toolCall": {
+        "tool": "log.sale.google.tool.json",
+        "intent": "append_saleslog12"
+      },
       "next": "closing_sale"
     },
-
     "closing_sale": {
-      "say": "Your order is confirmed. No shipping, no taxes, and your discount is locked in. Thank you for choosing Health America—you’re going to love the results. If you ever need anything or want to reorder, call us at 1-866-379-5131.",
+      "say": "Your order is confirmed. No shipping, no taxes, and your discount is locked in. Thank you for choosing Health America—you’re going to love the results. If you ever need anything or want to reorder, our number is 1-866-379-5131.",
       "tone": "absolute_certainty",
+      "pauseMs": 900,
       "end": true
     },
-
-    "farewell_soft": {
-      "say": "Thank you for your time today. If you need anything or want to reorder later, we’re at 1-866-379-5131.",
-      "tone": "empathetic",
-      "end": true
-    },
-
     "catch_all": {
-      "say": "I want to get this right for you. Could you say that a different way so I can help you faster?",
+      "say": "I want to get this right for you. Could you say that a different way so I can help you faster? You can also reach us at 1-866-379-5131.",
       "tone": "empathetic",
-      "pauseMs": 500,
+      "pauseMs": 900,
       "next": "reason_for_call"
+    },
+    "q_joint_intro_pause_1": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_2"
+    },
+    "q_joint_intro_pause_2": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_3"
+    },
+    "q_joint_intro_pause_3": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_4"
+    },
+    "q_joint_intro_pause_4": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_5"
+    },
+    "q_joint_intro_pause_5": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_6"
+    },
+    "q_joint_intro_pause_6": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_7"
+    },
+    "q_joint_intro_pause_7": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_8"
+    },
+    "q_joint_intro_pause_8": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_9"
+    },
+    "q_joint_intro_pause_9": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_10"
+    },
+    "q_joint_intro_pause_10": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_11"
+    },
+    "q_joint_intro_pause_11": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_12"
+    },
+    "q_joint_intro_pause_12": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_13"
+    },
+    "q_joint_intro_pause_13": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_14"
+    },
+    "q_joint_intro_pause_14": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_15"
+    },
+    "q_joint_intro_pause_15": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_16"
+    },
+    "q_joint_intro_pause_16": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_17"
+    },
+    "q_joint_intro_pause_17": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_18"
+    },
+    "q_joint_intro_pause_18": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_19"
+    },
+    "q_joint_intro_pause_19": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_20"
+    },
+    "q_joint_intro_pause_20": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_21"
+    },
+    "q_joint_intro_pause_21": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_22"
+    },
+    "q_joint_intro_pause_22": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_23"
+    },
+    "q_joint_intro_pause_23": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_24"
+    },
+    "q_joint_intro_pause_24": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_25"
+    },
+    "q_joint_intro_pause_25": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_26"
+    },
+    "q_joint_intro_pause_26": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_27"
+    },
+    "q_joint_intro_pause_27": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_28"
+    },
+    "q_joint_intro_pause_28": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_29"
+    },
+    "q_joint_intro_pause_29": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_30"
+    },
+    "q_joint_intro_pause_30": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_31"
+    },
+    "q_joint_intro_pause_31": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_32"
+    },
+    "q_joint_intro_pause_32": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_33"
+    },
+    "q_joint_intro_pause_33": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_34"
+    },
+    "q_joint_intro_pause_34": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_35"
+    },
+    "q_joint_intro_pause_35": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_36"
+    },
+    "q_joint_intro_pause_36": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_37"
+    },
+    "q_joint_intro_pause_37": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_38"
+    },
+    "q_joint_intro_pause_38": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_39"
+    },
+    "q_joint_intro_pause_39": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_40"
+    },
+    "q_joint_intro_pause_40": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_41"
+    },
+    "q_joint_intro_pause_41": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_42"
+    },
+    "q_joint_intro_pause_42": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_43"
+    },
+    "q_joint_intro_pause_43": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_44"
+    },
+    "q_joint_intro_pause_44": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_45"
+    },
+    "q_joint_intro_pause_45": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_46"
+    },
+    "q_joint_intro_pause_46": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_47"
+    },
+    "q_joint_intro_pause_47": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_48"
+    },
+    "q_joint_intro_pause_48": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_49"
+    },
+    "q_joint_intro_pause_49": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_50"
+    },
+    "q_joint_intro_pause_50": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_51"
+    },
+    "q_joint_intro_pause_51": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_52"
+    },
+    "q_joint_intro_pause_52": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_53"
+    },
+    "q_joint_intro_pause_53": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_54"
+    },
+    "q_joint_intro_pause_54": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_55"
+    },
+    "q_joint_intro_pause_55": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_56"
+    },
+    "q_joint_intro_pause_56": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_57"
+    },
+    "q_joint_intro_pause_57": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_58"
+    },
+    "q_joint_intro_pause_58": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_59"
+    },
+    "q_joint_intro_pause_59": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_intro_pause_60"
+    },
+    "q_joint_intro_pause_60": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "q_joint_have"
+    },
+    "needs_confirm_pause_1": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_2"
+    },
+    "needs_confirm_pause_2": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_3"
+    },
+    "needs_confirm_pause_3": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_4"
+    },
+    "needs_confirm_pause_4": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_5"
+    },
+    "needs_confirm_pause_5": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_6"
+    },
+    "needs_confirm_pause_6": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_7"
+    },
+    "needs_confirm_pause_7": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_8"
+    },
+    "needs_confirm_pause_8": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_9"
+    },
+    "needs_confirm_pause_9": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_10"
+    },
+    "needs_confirm_pause_10": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_11"
+    },
+    "needs_confirm_pause_11": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_12"
+    },
+    "needs_confirm_pause_12": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_13"
+    },
+    "needs_confirm_pause_13": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_14"
+    },
+    "needs_confirm_pause_14": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_15"
+    },
+    "needs_confirm_pause_15": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_16"
+    },
+    "needs_confirm_pause_16": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_17"
+    },
+    "needs_confirm_pause_17": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_18"
+    },
+    "needs_confirm_pause_18": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_19"
+    },
+    "needs_confirm_pause_19": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_20"
+    },
+    "needs_confirm_pause_20": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_21"
+    },
+    "needs_confirm_pause_21": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_22"
+    },
+    "needs_confirm_pause_22": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_23"
+    },
+    "needs_confirm_pause_23": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_24"
+    },
+    "needs_confirm_pause_24": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_25"
+    },
+    "needs_confirm_pause_25": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_26"
+    },
+    "needs_confirm_pause_26": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_27"
+    },
+    "needs_confirm_pause_27": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_28"
+    },
+    "needs_confirm_pause_28": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_29"
+    },
+    "needs_confirm_pause_29": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_30"
+    },
+    "needs_confirm_pause_30": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_31"
+    },
+    "needs_confirm_pause_31": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_32"
+    },
+    "needs_confirm_pause_32": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_33"
+    },
+    "needs_confirm_pause_33": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_34"
+    },
+    "needs_confirm_pause_34": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_35"
+    },
+    "needs_confirm_pause_35": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_36"
+    },
+    "needs_confirm_pause_36": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_37"
+    },
+    "needs_confirm_pause_37": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_38"
+    },
+    "needs_confirm_pause_38": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_39"
+    },
+    "needs_confirm_pause_39": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "needs_confirm_pause_40"
+    },
+    "needs_confirm_pause_40": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "kb_select"
+    },
+    "value_story_pitch_pause_1": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_2"
+    },
+    "value_story_pitch_pause_2": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_3"
+    },
+    "value_story_pitch_pause_3": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_4"
+    },
+    "value_story_pitch_pause_4": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_5"
+    },
+    "value_story_pitch_pause_5": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_6"
+    },
+    "value_story_pitch_pause_6": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_7"
+    },
+    "value_story_pitch_pause_7": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_8"
+    },
+    "value_story_pitch_pause_8": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_9"
+    },
+    "value_story_pitch_pause_9": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_10"
+    },
+    "value_story_pitch_pause_10": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_11"
+    },
+    "value_story_pitch_pause_11": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_12"
+    },
+    "value_story_pitch_pause_12": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_13"
+    },
+    "value_story_pitch_pause_13": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_14"
+    },
+    "value_story_pitch_pause_14": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_15"
+    },
+    "value_story_pitch_pause_15": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_16"
+    },
+    "value_story_pitch_pause_16": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_17"
+    },
+    "value_story_pitch_pause_17": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_18"
+    },
+    "value_story_pitch_pause_18": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_19"
+    },
+    "value_story_pitch_pause_19": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_20"
+    },
+    "value_story_pitch_pause_20": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_21"
+    },
+    "value_story_pitch_pause_21": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_22"
+    },
+    "value_story_pitch_pause_22": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_23"
+    },
+    "value_story_pitch_pause_23": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_24"
+    },
+    "value_story_pitch_pause_24": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_25"
+    },
+    "value_story_pitch_pause_25": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_26"
+    },
+    "value_story_pitch_pause_26": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_27"
+    },
+    "value_story_pitch_pause_27": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_28"
+    },
+    "value_story_pitch_pause_28": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_29"
+    },
+    "value_story_pitch_pause_29": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_30"
+    },
+    "value_story_pitch_pause_30": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_31"
+    },
+    "value_story_pitch_pause_31": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_32"
+    },
+    "value_story_pitch_pause_32": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_33"
+    },
+    "value_story_pitch_pause_33": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_34"
+    },
+    "value_story_pitch_pause_34": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_35"
+    },
+    "value_story_pitch_pause_35": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_36"
+    },
+    "value_story_pitch_pause_36": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_37"
+    },
+    "value_story_pitch_pause_37": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_38"
+    },
+    "value_story_pitch_pause_38": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_39"
+    },
+    "value_story_pitch_pause_39": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "value_story_pitch_pause_40"
+    },
+    "value_story_pitch_pause_40": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "offer_choice_pause_1": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_2"
+    },
+    "offer_choice_pause_2": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_3"
+    },
+    "offer_choice_pause_3": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_4"
+    },
+    "offer_choice_pause_4": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_5"
+    },
+    "offer_choice_pause_5": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_6"
+    },
+    "offer_choice_pause_6": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_7"
+    },
+    "offer_choice_pause_7": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_8"
+    },
+    "offer_choice_pause_8": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_9"
+    },
+    "offer_choice_pause_9": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_10"
+    },
+    "offer_choice_pause_10": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_11"
+    },
+    "offer_choice_pause_11": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_12"
+    },
+    "offer_choice_pause_12": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_13"
+    },
+    "offer_choice_pause_13": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_14"
+    },
+    "offer_choice_pause_14": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_15"
+    },
+    "offer_choice_pause_15": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_16"
+    },
+    "offer_choice_pause_16": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_17"
+    },
+    "offer_choice_pause_17": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_18"
+    },
+    "offer_choice_pause_18": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_19"
+    },
+    "offer_choice_pause_19": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_20"
+    },
+    "offer_choice_pause_20": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_21"
+    },
+    "offer_choice_pause_21": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_22"
+    },
+    "offer_choice_pause_22": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_23"
+    },
+    "offer_choice_pause_23": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_24"
+    },
+    "offer_choice_pause_24": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_25"
+    },
+    "offer_choice_pause_25": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_26"
+    },
+    "offer_choice_pause_26": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_27"
+    },
+    "offer_choice_pause_27": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_28"
+    },
+    "offer_choice_pause_28": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_29"
+    },
+    "offer_choice_pause_29": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_30"
+    },
+    "offer_choice_pause_30": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_31"
+    },
+    "offer_choice_pause_31": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_32"
+    },
+    "offer_choice_pause_32": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_33"
+    },
+    "offer_choice_pause_33": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_34"
+    },
+    "offer_choice_pause_34": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_35"
+    },
+    "offer_choice_pause_35": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_36"
+    },
+    "offer_choice_pause_36": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_37"
+    },
+    "offer_choice_pause_37": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_38"
+    },
+    "offer_choice_pause_38": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_39"
+    },
+    "offer_choice_pause_39": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_40"
+    },
+    "offer_choice_pause_40": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_41"
+    },
+    "offer_choice_pause_41": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_42"
+    },
+    "offer_choice_pause_42": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_43"
+    },
+    "offer_choice_pause_43": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_44"
+    },
+    "offer_choice_pause_44": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_45"
+    },
+    "offer_choice_pause_45": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_46"
+    },
+    "offer_choice_pause_46": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_47"
+    },
+    "offer_choice_pause_47": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_48"
+    },
+    "offer_choice_pause_48": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_49"
+    },
+    "offer_choice_pause_49": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_50"
+    },
+    "offer_choice_pause_50": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_51"
+    },
+    "offer_choice_pause_51": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_52"
+    },
+    "offer_choice_pause_52": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_53"
+    },
+    "offer_choice_pause_53": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_54"
+    },
+    "offer_choice_pause_54": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_55"
+    },
+    "offer_choice_pause_55": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_56"
+    },
+    "offer_choice_pause_56": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_57"
+    },
+    "offer_choice_pause_57": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_58"
+    },
+    "offer_choice_pause_58": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_59"
+    },
+    "offer_choice_pause_59": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "offer_choice_pause_60"
+    },
+    "offer_choice_pause_60": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "price_coach"
+    },
+    "identity_intro_pause_1": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_2"
+    },
+    "identity_intro_pause_2": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_3"
+    },
+    "identity_intro_pause_3": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_4"
+    },
+    "identity_intro_pause_4": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_5"
+    },
+    "identity_intro_pause_5": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_6"
+    },
+    "identity_intro_pause_6": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_7"
+    },
+    "identity_intro_pause_7": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_8"
+    },
+    "identity_intro_pause_8": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_9"
+    },
+    "identity_intro_pause_9": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_10"
+    },
+    "identity_intro_pause_10": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_11"
+    },
+    "identity_intro_pause_11": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_12"
+    },
+    "identity_intro_pause_12": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_13"
+    },
+    "identity_intro_pause_13": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_14"
+    },
+    "identity_intro_pause_14": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_15"
+    },
+    "identity_intro_pause_15": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_16"
+    },
+    "identity_intro_pause_16": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_17"
+    },
+    "identity_intro_pause_17": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_18"
+    },
+    "identity_intro_pause_18": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_19"
+    },
+    "identity_intro_pause_19": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_20"
+    },
+    "identity_intro_pause_20": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_21"
+    },
+    "identity_intro_pause_21": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_22"
+    },
+    "identity_intro_pause_22": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_23"
+    },
+    "identity_intro_pause_23": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_24"
+    },
+    "identity_intro_pause_24": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_25"
+    },
+    "identity_intro_pause_25": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_26"
+    },
+    "identity_intro_pause_26": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_27"
+    },
+    "identity_intro_pause_27": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_28"
+    },
+    "identity_intro_pause_28": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_29"
+    },
+    "identity_intro_pause_29": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_30"
+    },
+    "identity_intro_pause_30": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_31"
+    },
+    "identity_intro_pause_31": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_32"
+    },
+    "identity_intro_pause_32": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_33"
+    },
+    "identity_intro_pause_33": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_34"
+    },
+    "identity_intro_pause_34": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_35"
+    },
+    "identity_intro_pause_35": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_36"
+    },
+    "identity_intro_pause_36": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_37"
+    },
+    "identity_intro_pause_37": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_38"
+    },
+    "identity_intro_pause_38": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_39"
+    },
+    "identity_intro_pause_39": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_40"
+    },
+    "identity_intro_pause_40": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_41"
+    },
+    "identity_intro_pause_41": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_42"
+    },
+    "identity_intro_pause_42": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_43"
+    },
+    "identity_intro_pause_43": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_44"
+    },
+    "identity_intro_pause_44": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_45"
+    },
+    "identity_intro_pause_45": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_46"
+    },
+    "identity_intro_pause_46": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_47"
+    },
+    "identity_intro_pause_47": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_48"
+    },
+    "identity_intro_pause_48": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_49"
+    },
+    "identity_intro_pause_49": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_50"
+    },
+    "identity_intro_pause_50": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_51"
+    },
+    "identity_intro_pause_51": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_52"
+    },
+    "identity_intro_pause_52": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_53"
+    },
+    "identity_intro_pause_53": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_54"
+    },
+    "identity_intro_pause_54": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_55"
+    },
+    "identity_intro_pause_55": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_56"
+    },
+    "identity_intro_pause_56": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_57"
+    },
+    "identity_intro_pause_57": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_58"
+    },
+    "identity_intro_pause_58": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_59"
+    },
+    "identity_intro_pause_59": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "identity_intro_pause_60"
+    },
+    "identity_intro_pause_60": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "name_on_card"
+    },
+    "readback_confirm_pause_1": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_2"
+    },
+    "readback_confirm_pause_2": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_3"
+    },
+    "readback_confirm_pause_3": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_4"
+    },
+    "readback_confirm_pause_4": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_5"
+    },
+    "readback_confirm_pause_5": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_6"
+    },
+    "readback_confirm_pause_6": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_7"
+    },
+    "readback_confirm_pause_7": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_8"
+    },
+    "readback_confirm_pause_8": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_9"
+    },
+    "readback_confirm_pause_9": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_10"
+    },
+    "readback_confirm_pause_10": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_11"
+    },
+    "readback_confirm_pause_11": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_12"
+    },
+    "readback_confirm_pause_12": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_13"
+    },
+    "readback_confirm_pause_13": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_14"
+    },
+    "readback_confirm_pause_14": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_15"
+    },
+    "readback_confirm_pause_15": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_16"
+    },
+    "readback_confirm_pause_16": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_17"
+    },
+    "readback_confirm_pause_17": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_18"
+    },
+    "readback_confirm_pause_18": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_19"
+    },
+    "readback_confirm_pause_19": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_20"
+    },
+    "readback_confirm_pause_20": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_21"
+    },
+    "readback_confirm_pause_21": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_22"
+    },
+    "readback_confirm_pause_22": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_23"
+    },
+    "readback_confirm_pause_23": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_24"
+    },
+    "readback_confirm_pause_24": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_25"
+    },
+    "readback_confirm_pause_25": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_26"
+    },
+    "readback_confirm_pause_26": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_27"
+    },
+    "readback_confirm_pause_27": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_28"
+    },
+    "readback_confirm_pause_28": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_29"
+    },
+    "readback_confirm_pause_29": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_30"
+    },
+    "readback_confirm_pause_30": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_31"
+    },
+    "readback_confirm_pause_31": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_32"
+    },
+    "readback_confirm_pause_32": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_33"
+    },
+    "readback_confirm_pause_33": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_34"
+    },
+    "readback_confirm_pause_34": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_35"
+    },
+    "readback_confirm_pause_35": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_36"
+    },
+    "readback_confirm_pause_36": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_37"
+    },
+    "readback_confirm_pause_37": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_38"
+    },
+    "readback_confirm_pause_38": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_39"
+    },
+    "readback_confirm_pause_39": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "readback_confirm_pause_40"
+    },
+    "readback_confirm_pause_40": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "capture_sale"
+    },
+    "objection_template_1": {
+      "say": "I understand—here’s a thought number 1: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_2": {
+      "say": "I understand—here’s a thought number 2: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_3": {
+      "say": "I understand—here’s a thought number 3: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_4": {
+      "say": "I understand—here’s a thought number 4: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_5": {
+      "say": "I understand—here’s a thought number 5: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_6": {
+      "say": "I understand—here’s a thought number 6: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_7": {
+      "say": "I understand—here’s a thought number 7: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_8": {
+      "say": "I understand—here’s a thought number 8: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_9": {
+      "say": "I understand—here’s a thought number 9: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_10": {
+      "say": "I understand—here’s a thought number 10: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_11": {
+      "say": "I understand—here’s a thought number 11: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_12": {
+      "say": "I understand—here’s a thought number 12: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_13": {
+      "say": "I understand—here’s a thought number 13: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_14": {
+      "say": "I understand—here’s a thought number 14: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_15": {
+      "say": "I understand—here’s a thought number 15: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_16": {
+      "say": "I understand—here’s a thought number 16: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_17": {
+      "say": "I understand—here’s a thought number 17: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_18": {
+      "say": "I understand—here’s a thought number 18: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_19": {
+      "say": "I understand—here’s a thought number 19: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_20": {
+      "say": "I understand—here’s a thought number 20: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_21": {
+      "say": "I understand—here’s a thought number 21: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_22": {
+      "say": "I understand—here’s a thought number 22: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_23": {
+      "say": "I understand—here’s a thought number 23: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_24": {
+      "say": "I understand—here’s a thought number 24: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_25": {
+      "say": "I understand—here’s a thought number 25: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_26": {
+      "say": "I understand—here’s a thought number 26: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_27": {
+      "say": "I understand—here’s a thought number 27: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_28": {
+      "say": "I understand—here’s a thought number 28: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_29": {
+      "say": "I understand—here’s a thought number 29: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_30": {
+      "say": "I understand—here’s a thought number 30: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_31": {
+      "say": "I understand—here’s a thought number 31: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_32": {
+      "say": "I understand—here’s a thought number 32: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_33": {
+      "say": "I understand—here’s a thought number 33: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_34": {
+      "say": "I understand—here’s a thought number 34: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_35": {
+      "say": "I understand—here’s a thought number 35: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_36": {
+      "say": "I understand—here’s a thought number 36: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_37": {
+      "say": "I understand—here’s a thought number 37: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_38": {
+      "say": "I understand—here’s a thought number 38: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_39": {
+      "say": "I understand—here’s a thought number 39: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_40": {
+      "say": "I understand—here’s a thought number 40: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_41": {
+      "say": "I understand—here’s a thought number 41: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_42": {
+      "say": "I understand—here’s a thought number 42: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_43": {
+      "say": "I understand—here’s a thought number 43: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_44": {
+      "say": "I understand—here’s a thought number 44: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_45": {
+      "say": "I understand—here’s a thought number 45: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_46": {
+      "say": "I understand—here’s a thought number 46: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_47": {
+      "say": "I understand—here’s a thought number 47: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_48": {
+      "say": "I understand—here’s a thought number 48: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_49": {
+      "say": "I understand—here’s a thought number 49: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_50": {
+      "say": "I understand—here’s a thought number 50: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_51": {
+      "say": "I understand—here’s a thought number 51: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_52": {
+      "say": "I understand—here’s a thought number 52: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_53": {
+      "say": "I understand—here’s a thought number 53: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_54": {
+      "say": "I understand—here’s a thought number 54: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_55": {
+      "say": "I understand—here’s a thought number 55: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_56": {
+      "say": "I understand—here’s a thought number 56: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_57": {
+      "say": "I understand—here’s a thought number 57: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_58": {
+      "say": "I understand—here’s a thought number 58: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_59": {
+      "say": "I understand—here’s a thought number 59: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_60": {
+      "say": "I understand—here’s a thought number 60: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_61": {
+      "say": "I understand—here’s a thought number 61: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_62": {
+      "say": "I understand—here’s a thought number 62: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_63": {
+      "say": "I understand—here’s a thought number 63: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_64": {
+      "say": "I understand—here’s a thought number 64: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_65": {
+      "say": "I understand—here’s a thought number 65: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_66": {
+      "say": "I understand—here’s a thought number 66: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_67": {
+      "say": "I understand—here’s a thought number 67: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_68": {
+      "say": "I understand—here’s a thought number 68: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_69": {
+      "say": "I understand—here’s a thought number 69: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_70": {
+      "say": "I understand—here’s a thought number 70: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_71": {
+      "say": "I understand—here’s a thought number 71: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_72": {
+      "say": "I understand—here’s a thought number 72: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_73": {
+      "say": "I understand—here’s a thought number 73: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_74": {
+      "say": "I understand—here’s a thought number 74: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_75": {
+      "say": "I understand—here’s a thought number 75: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_76": {
+      "say": "I understand—here’s a thought number 76: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_77": {
+      "say": "I understand—here’s a thought number 77: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_78": {
+      "say": "I understand—here’s a thought number 78: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_79": {
+      "say": "I understand—here’s a thought number 79: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_80": {
+      "say": "I understand—here’s a thought number 80: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_81": {
+      "say": "I understand—here’s a thought number 81: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_82": {
+      "say": "I understand—here’s a thought number 82: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_83": {
+      "say": "I understand—here’s a thought number 83: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_84": {
+      "say": "I understand—here’s a thought number 84: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_85": {
+      "say": "I understand—here’s a thought number 85: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_86": {
+      "say": "I understand—here’s a thought number 86: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_87": {
+      "say": "I understand—here’s a thought number 87: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_88": {
+      "say": "I understand—here’s a thought number 88: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_89": {
+      "say": "I understand—here’s a thought number 89: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_90": {
+      "say": "I understand—here’s a thought number 90: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_91": {
+      "say": "I understand—here’s a thought number 91: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_92": {
+      "say": "I understand—here’s a thought number 92: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_93": {
+      "say": "I understand—here’s a thought number 93: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_94": {
+      "say": "I understand—here’s a thought number 94: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_95": {
+      "say": "I understand—here’s a thought number 95: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_96": {
+      "say": "I understand—here’s a thought number 96: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_97": {
+      "say": "I understand—here’s a thought number 97: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_98": {
+      "say": "I understand—here’s a thought number 98: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_99": {
+      "say": "I understand—here’s a thought number 99: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_100": {
+      "say": "I understand—here’s a thought number 100: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_101": {
+      "say": "I understand—here’s a thought number 101: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_102": {
+      "say": "I understand—here’s a thought number 102: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_103": {
+      "say": "I understand—here’s a thought number 103: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_104": {
+      "say": "I understand—here’s a thought number 104: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_105": {
+      "say": "I understand—here’s a thought number 105: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_106": {
+      "say": "I understand—here’s a thought number 106: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_107": {
+      "say": "I understand—here’s a thought number 107: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_108": {
+      "say": "I understand—here’s a thought number 108: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_109": {
+      "say": "I understand—here’s a thought number 109: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_110": {
+      "say": "I understand—here’s a thought number 110: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_111": {
+      "say": "I understand—here’s a thought number 111: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_112": {
+      "say": "I understand—here’s a thought number 112: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_113": {
+      "say": "I understand—here’s a thought number 113: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_114": {
+      "say": "I understand—here’s a thought number 114: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_115": {
+      "say": "I understand—here’s a thought number 115: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_116": {
+      "say": "I understand—here’s a thought number 116: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_117": {
+      "say": "I understand—here’s a thought number 117: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_118": {
+      "say": "I understand—here’s a thought number 118: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_119": {
+      "say": "I understand—here’s a thought number 119: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_120": {
+      "say": "I understand—here’s a thought number 120: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_121": {
+      "say": "I understand—here’s a thought number 121: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_122": {
+      "say": "I understand—here’s a thought number 122: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_123": {
+      "say": "I understand—here’s a thought number 123: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_124": {
+      "say": "I understand—here’s a thought number 124: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_125": {
+      "say": "I understand—here’s a thought number 125: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_126": {
+      "say": "I understand—here’s a thought number 126: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_127": {
+      "say": "I understand—here’s a thought number 127: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_128": {
+      "say": "I understand—here’s a thought number 128: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_129": {
+      "say": "I understand—here’s a thought number 129: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_130": {
+      "say": "I understand—here’s a thought number 130: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_131": {
+      "say": "I understand—here’s a thought number 131: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_132": {
+      "say": "I understand—here’s a thought number 132: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_133": {
+      "say": "I understand—here’s a thought number 133: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_134": {
+      "say": "I understand—here’s a thought number 134: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_135": {
+      "say": "I understand—here’s a thought number 135: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_136": {
+      "say": "I understand—here’s a thought number 136: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_137": {
+      "say": "I understand—here’s a thought number 137: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_138": {
+      "say": "I understand—here’s a thought number 138: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_139": {
+      "say": "I understand—here’s a thought number 139: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_140": {
+      "say": "I understand—here’s a thought number 140: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_141": {
+      "say": "I understand—here’s a thought number 141: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_142": {
+      "say": "I understand—here’s a thought number 142: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_143": {
+      "say": "I understand—here’s a thought number 143: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_144": {
+      "say": "I understand—here’s a thought number 144: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_145": {
+      "say": "I understand—here’s a thought number 145: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_146": {
+      "say": "I understand—here’s a thought number 146: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_147": {
+      "say": "I understand—here’s a thought number 147: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_148": {
+      "say": "I understand—here’s a thought number 148: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_149": {
+      "say": "I understand—here’s a thought number 149: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
+    },
+    "objection_template_150": {
+      "say": "I understand—here’s a thought number 150: you’re fully protected by our guarantee, and results build with consistency.",
+      "tone": "empathetic",
+      "pauseMs": 900,
+      "next": "trial_close"
     }
   }
 }
-
