@@ -1,7 +1,8 @@
 {
   "meta": {
-    "version": "1.4",
+    "version": "2.0",
     "hotline": "1-866-379-5131",
+    "org": "Health America",
     "tools": {
       "kb_csv": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv",
       "kb_query": "query_KB.tool.json",
@@ -16,19 +17,52 @@
       "absolute_certainty": { "pitch": "-8%", "rate": "-5%", "volume": "x-loud" },
       "neutral": { "pitch": "0%", "rate": "0%", "volume": "medium" }
     },
-    "currencySpeechRule": "Speak prices as human phrases (eighty-nine ninety-nine). Avoid saying 'point'. If SSML is available, use <say-as interpret-as=\"currency\">."
+    "currencySpeechRule": "Speak prices like a human: 'eighty nine ninety nine'. Never say 'point'. If SSML is available, prefer <say-as interpret-as=\"currency\"> when reading final totals.",
+    "pricing": {
+      "monthly_sub": 79.99,
+      "one_time": 89.99,
+      "pack_3": 199.99,
+      "pack_6": 299.99,
+      "annual_12": 499.99,
+      "postdate_allowed": true
+    },
+    "bundles": {
+      "twelve_mix": {
+        "title": "12-Item Annual Mix",
+        "description": "Any 12 items (e.g., 6 Marine Phytoplankton + 6 Açaí) for one flat annual price.",
+        "price": 499.99,
+        "notes": "Encourage equal splits across two top-fit products for the goal."
+      }
+    },
+    "products": [
+      { "id": "marine_phytoplankton", "name": "Marine Phytoplankton", "forms": ["capsule", "powder"], "category": "Energy / Metabolism" },
+      { "id": "acai_powder", "name": "Açaí Powder", "forms": ["powder"], "category": "Antioxidant / Weight" },
+      { "id": "joint_complex", "name": "Joint Complex", "forms": ["capsule"], "category": "Joint & Mobility" },
+      { "id": "blood_sugar_balance", "name": "Blood Sugar Balance", "forms": ["capsule"], "category": "Blood Sugar Support" },
+      { "id": "cardio_support", "name": "Cardio Support", "forms": ["capsule"], "category": "Cardiovascular" },
+      { "id": "brain_focus", "name": "Brain Focus", "forms": ["capsule"], "category": "Cognitive" },
+      { "id": "sleep_restore", "name": "Sleep Restore", "forms": ["capsule"], "category": "Sleep" },
+      { "id": "immune_guard", "name": "Immune Guard", "forms": ["capsule"], "category": "Immune" },
+      { "id": "respiratory_relief", "name": "Respiratory Relief", "forms": ["capsule"], "category": "Respiratory" },
+      { "id": "vision_plus", "name": "Vision Plus", "forms": ["capsule"], "category": "Vision" },
+      { "id": "energy_metabolism", "name": "Energy & Metabolism", "forms": ["capsule"], "category": "Energy / Metabolism" },
+      { "id": "stress_mood", "name": "Stress & Mood Adaptogens", "forms": ["capsule"], "category": "Stress & Mood" }
+    ],
+    "routingNotes": "Primary category is chosen by severity or risk flags; secondary for synergy. Value-building pulls from KB fields: Benefits to Desired Outcomes + Key Benefits."
   },
 
   "states": {
     "start": {
       "say": "Hello, this is Alex with Health America. How are you doing today?",
       "tone": "enthusiastic",
+      "pauseMs": 600,
       "next": "reason_for_call"
     },
 
     "reason_for_call": {
       "say": "The reason I’m calling is to follow up on the information we sent out. Did you get that okay?",
       "tone": "enthusiastic",
+      "pauseMs": 400,
       "branches": {
         "yes": "qualify_intro",
         "no": "qualify_intro",
@@ -38,149 +72,344 @@
     },
 
     "hotline_offer": {
-      "say": "Absolutely. Our customer care and reorder line is one eight six six… three seven nine… five one three one. I’ll repeat that normally: 1-866-379-5131. I can also help you right now—would you like me to take care of this for you?",
+      "say": "Absolutely. Our customer care and reorder line is one eight six six… three seven nine… five one three one. Repeating normally: 1-866-379-5131. I can also help you right now—would you like me to handle this for you?",
       "tone": "empathetic",
-      "branches": {
-        "yes": "qualify_intro",
-        "no": "farewell_soft"
-      }
+      "pauseMs": 400,
+      "branches": { "yes": "qualify_intro", "no": "farewell_soft" }
     },
 
     "qualify_intro": {
-      "say": "Great—let me ask a few quick questions to better understand your health. I’ll keep it simple and quick.",
+      "say": "Great—I’ll ask short questions one at a time so I can tailor the recommendation for you.",
       "tone": "curious",
-      "next": "q1_joint"
+      "pauseMs": 300,
+      "next": "q_joint_any"
     },
 
-    "q1_joint": {
+    "q_joint_any": {
       "say": "Do you have arthritis or joint pain and stiffness?",
       "tone": "curious",
-      "capture": "joint_pain",
-      "next": "q2_pain"
+      "capture": "joint_pain_any",
+      "pauseMs": 700,
+      "next": "ack_joint_any"
     },
-    "q2_pain": {
-      "say": "On a scale of one to ten, what’s your pain today?",
+    "ack_joint_any": {
+      "say": "Got it, thank you.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_joint_pain_scale"
+    },
+    "q_joint_pain_scale": {
+      "say": "On a scale of one to ten, what’s your joint pain today?",
       "tone": "curious",
-      "capture": "pain_level",
-      "next": "q3_age"
+      "capture": "joint_pain_scale",
+      "pauseMs": 700,
+      "next": "ack_joint_scale"
     },
-    "q3_age": {
-      "say": "If you don’t mind me asking, how old are you? You sound great—much younger than that.",
+    "ack_joint_scale": {
+      "say": "Thank you, that helps.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_age_exact"
+    },
+
+    "q_age_exact": {
+      "say": "If you don’t mind me asking, how old are you?",
       "tone": "curious",
       "capture": "age_years",
-      "next": "q4_diabetes"
+      "pauseMs": 700,
+      "next": "ack_age"
     },
-    "q4_diabetes": {
-      "say": "Do you deal with diabetes? Is it type one or type two? Is it managed, and what do you take for it?",
+    "ack_age": {
+      "say": "Appreciate it—you sound great.",
+      "tone": "empathetic",
+      "pauseMs": 250,
+      "next": "q_diabetes_have"
+    },
+
+    "q_diabetes_have": {
+      "say": "Do you deal with diabetes of any kind—yes or no?",
       "tone": "curious",
-      "capture": "diabetes_detail",
-      "next": "q5_energy"
+      "capture": "diabetes_have",
+      "pauseMs": 700,
+      "branches": { "yes": "q_diabetes_type", "no": "q_energy_level", "hesitate": "q_energy_level" }
     },
-    "q5_energy": {
-      "say": "How are your energy levels day to day?",
+    "q_diabetes_type": {
+      "say": "Is it type one or type two?",
+      "tone": "curious",
+      "capture": "diabetes_type",
+      "pauseMs": 600,
+      "next": "ack_diabetes_type"
+    },
+    "ack_diabetes_type": {
+      "say": "Thanks. Is it managed well right now?",
+      "tone": "curious",
+      "capture": "diabetes_managed",
+      "pauseMs": 700,
+      "next": "q_diabetes_meds"
+    },
+    "q_diabetes_meds": {
+      "say": "What do you currently take for it, if anything?",
+      "tone": "curious",
+      "capture": "diabetes_meds",
+      "pauseMs": 800,
+      "next": "ack_diabetes"
+    },
+    "ack_diabetes": {
+      "say": "Thank you, that gives me a clearer picture.",
+      "tone": "empathetic",
+      "pauseMs": 250,
+      "next": "q_energy_level"
+    },
+
+    "q_energy_level": {
+      "say": "How are your energy levels day to day—low, medium, or high?",
       "tone": "curious",
       "capture": "energy_level",
-      "next": "q6_breathing"
+      "pauseMs": 700,
+      "next": "ack_energy"
     },
-    "q6_breathing": {
-      "say": "Any breathing issues or shortness of breath?",
+    "ack_energy": {
+      "say": "Got it.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_breathing_issue"
+    },
+
+    "q_breathing_issue": {
+      "say": "Any breathing issues or shortness of breath—yes or no?",
       "tone": "curious",
       "capture": "breathing_issue",
-      "next": "q7_sleep"
+      "pauseMs": 700,
+      "next": "ack_breathing"
     },
-    "q7_sleep": {
-      "say": "Do you feel your sleep is restful?",
+    "ack_breathing": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_sleep_restful"
+    },
+
+    "q_sleep_restful": {
+      "say": "Do you feel your sleep is restful—yes or no?",
       "tone": "curious",
-      "capture": "sleep_quality",
-      "next": "q8_senses"
+      "capture": "sleep_restful",
+      "pauseMs": 700,
+      "next": "ack_sleep"
     },
-    "q8_senses": {
-      "say": "How are your hearing and vision?",
+    "ack_sleep": {
+      "say": "Understood.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_hearing_ok"
+    },
+
+    "q_hearing_ok": {
+      "say": "How is your hearing—would you say okay or not great?",
       "tone": "curious",
-      "capture": "hearing_vision",
-      "next": "q9_weight"
+      "capture": "hearing_status",
+      "pauseMs": 700,
+      "next": "ack_hearing"
     },
-    "q9_weight": {
-      "say": "Are you happy with your current weight? About how many pounds are you looking to lose?",
+    "ack_hearing": {
+      "say": "Thanks.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_vision_ok"
+    },
+
+    "q_vision_ok": {
+      "say": "How is your vision—okay or not great?",
+      "tone": "curious",
+      "capture": "vision_status",
+      "pauseMs": 700,
+      "next": "ack_vision"
+    },
+    "ack_vision": {
+      "say": "Thanks for letting me know.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_weight_goal"
+    },
+
+    "q_weight_goal": {
+      "say": "Are you happy with your current weight? About how many pounds would you ideally like to lose, if any?",
       "tone": "curious",
       "capture": "weight_goal_lbs",
-      "next": "q10_bp"
+      "pauseMs": 900,
+      "next": "ack_weight"
     },
-    "q10_bp": {
-      "say": "How is your blood pressure? What do you do to treat it?",
+    "ack_weight": {
+      "say": "Got it.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_bp_any"
+    },
+
+    "q_bp_any": {
+      "say": "Do you have elevated blood pressure or take anything for it—yes or no?",
       "tone": "curious",
-      "capture": "bp_detail",
-      "next": "q11_cognitive"
+      "capture": "bp_any",
+      "pauseMs": 700,
+      "branches": { "yes": "q_bp_med", "no": "q_cognitive_any", "hesitate": "q_cognitive_any" }
     },
-    "q11_cognitive": {
+    "q_bp_med": {
+      "say": "What do you take or do to manage it?",
+      "tone": "curious",
+      "capture": "bp_meds",
+      "pauseMs": 800,
+      "next": "ack_bp"
+    },
+    "ack_bp": {
+      "say": "Thanks for clarifying.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_cognitive_any"
+    },
+
+    "q_cognitive_any": {
       "say": "Any memory or balance issues—brain fog or trouble focusing?",
       "tone": "curious",
       "capture": "cognitive_issue",
-      "next": "q12_immune"
+      "pauseMs": 900,
+      "next": "ack_cognitive"
     },
-    "q12_immune": {
-      "say": "How is your immune system? Are you prone to colds, the flu, sinus issues, or allergies?",
+    "ack_cognitive": {
+      "say": "Thank you.",
+      "tone": "empathetic",
+      "pauseMs": 200,
+      "next": "q_immune_any"
+    },
+
+    "q_immune_any": {
+      "say": "Are you prone to colds, the flu, or seasonal allergies or sinus issues—yes or no?",
       "tone": "curious",
       "capture": "immune_issue",
+      "pauseMs": 900,
+      "next": "ack_immune"
+    },
+    "ack_immune": {
+      "say": "Appreciate your answers—this helps me get it right.",
+      "tone": "empathetic",
+      "pauseMs": 300,
       "next": "needs_confirm"
     },
 
     "needs_confirm": {
-      "say": "From what you’ve shared, we’re focusing on your top concern first: {{primary_goal}}—and you also mentioned {{secondary_goal}}. That matches what I’m seeing.",
+      "say": "From what you’ve shared, we’ll focus first on {{primary_goal}} and also support {{secondary_goal}}. Sound right?",
       "tone": "empathetic",
       "logic": "resolve_primary_secondary_goals",
-      "next": "kb_select"
+      "pauseMs": 400,
+      "next": "kb_value_pull"
     },
 
-    "kb_select": {
-      "say": "Let me match you with the best fit from our line.",
+    "kb_value_pull": {
+      "say": "Let me match the best fit from our line and summarize the benefits in simple terms.",
       "tone": "authoritative",
-      "toolCall": {
-        "tool": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv",
-        "intent": "map_flags_to_products"
-      },
+      "toolCall": { "tool": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv", "intent": "map_flags_to_products" },
+      "pauseMs": 300,
       "next": "value_story_pitch"
     },
 
     "value_story_pitch": {
-      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{benefits_to_outcomes}}—for example, {{key_benefits}}—so you can {{tangible_outcome}}. Many customers also add {{upsell_product}} to {{upsell_benefit}}. It’s optional, but it can accelerate results.",
+      "say": "Based on your goals, the best fit is {{primary_product}} in {{primary_form}}. It supports {{benefits_to_outcomes}}—for example, {{key_benefits}}—so you can {{tangible_outcome}}. Most customers also pair it with {{upsell_product}} to reinforce {{upsell_benefit}} and get faster, longer-lasting results.",
       "tone": "enthusiastic",
+      "pauseMs": 400,
       "next": "trial_close"
     },
 
     "trial_close": {
-      "say": "That sounds like exactly what you were hoping to find, doesn’t it?",
+      "say": "That’s the direction you were hoping for, yes?",
       "tone": "calm_confidence",
+      "pauseMs": 400,
       "branches": {
-        "yes": "offer_choice",
+        "yes": "offer_menu",
         "service": "hotline_offer",
         "hesitate": "objection_router"
       }
-    },
-
-    "offer_choice": {
-      "say": "Perfect. Would you like the single bottle, or the value pack that saves more per bottle?",
-      "tone": "authoritative",
-      "capture": "product_choice",
-      "next": "identity_intro"
     },
 
     "objection_router": {
       "say": "I completely understand.",
       "tone": "empathetic",
       "logic": "identify_objection",
+      "pauseMs": 200,
       "next": "objection_handle"
     },
-
     "objection_handle": {
       "say": "{{objection_reply}}",
       "tone": "authoritative",
+      "pauseMs": 300,
       "next": "trial_close"
     },
 
-    "identity_intro": {
-      "say": "Great, I’ll take care of everything for you. I’ll capture the details clearly and confirm back as we go.",
+    "offer_menu": {
+      "say": "Let’s get you the best value. You can start with a monthly membership at {{price_monthly_sub_human}} and save on every shipment, go with a larger value pack like the six-pack at {{price_6_human}}, or maximize value with our 12-item annual at {{price_12_human}}. We can also do a one-time at {{price_one_human}} or a three-pack at {{price_3_human}}—your call.",
       "tone": "authoritative",
+      "logic": "format_human_currency",
+      "pauseMs": 600,
+      "next": "offer_choice_primary"
+    },
+
+    "offer_choice_primary": {
+      "say": "Which makes the most sense for you—monthly membership, six-pack, or the 12-item annual?",
+      "tone": "calm_confidence",
+      "capture": "offer_primary_choice",
+      "pauseMs": 800,
+      "branches": {
+        "annual_12": "bundle_suggest",
+        "pack_6": "form_select_primary",
+        "monthly_sub": "form_select_primary",
+        "one_time": "form_select_primary",
+        "pack_3": "form_select_primary",
+        "hesitate": "offer_reassure"
+      }
+    },
+    "offer_reassure": {
+      "say": "No rush—I’ll keep this simple. The six-pack and annual give you the strongest savings and consistency. Which of those feels right?",
+      "tone": "empathetic",
+      "pauseMs": 500,
+      "next": "offer_choice_primary"
+    },
+
+    "bundle_suggest": {
+      "say": "Great pick. With the 12-item annual at {{price_12_human}}, most customers split between two top fit products, like six {{primary_product}} and six {{bundle_partner}}. Would you like that combo?",
+      "tone": "authoritative",
+      "logic": "suggest_bundle_partner",
+      "pauseMs": 600,
+      "branches": {
+        "yes": "form_select_primary",
+        "no": "bundle_customize"
+      }
+    },
+    "bundle_customize": {
+      "say": "No problem—how would you like to split your 12 items? For example, 4 and 8, or 6 and 6—your choice.",
+      "tone": "calm_confidence",
+      "capture": "bundle_split_plan",
+      "pauseMs": 900,
+      "next": "form_select_primary"
+    },
+
+    "form_select_primary": {
+      "say": "For {{primary_product}}, do you prefer {{primary_forms_list}}?",
+      "tone": "authoritative",
+      "logic": "list_forms_for_primary",
+      "capture": "primary_form_choice",
+      "pauseMs": 800,
+      "next": "form_select_secondary"
+    },
+    "form_select_secondary": {
+      "say": "And for {{upsell_product}}, do you prefer {{upsell_forms_list}}?",
+      "tone": "authoritative",
+      "logic": "list_forms_for_upsell",
+      "capture": "upsell_form_choice",
+      "pauseMs": 800,
+      "next": "identity_intro"
+    },
+
+    "identity_intro": {
+      "say": "Excellent—I’ll take care of all details and confirm back as we go.",
+      "tone": "authoritative",
+      "pauseMs": 300,
       "next": "name_on_card"
     },
 
@@ -188,180 +417,241 @@
       "say": "First, what’s your full name exactly as it appears on the card?",
       "tone": "authoritative",
       "capture": "creditCardName",
+      "pauseMs": 900,
       "next": "billing_street"
     },
     "billing_street": {
-      "say": "What’s the billing street address for the card? Include apartment or unit if any.",
+      "say": "Billing street address—include apartment or unit if any?",
       "tone": "authoritative",
       "capture": "billAddress1",
+      "pauseMs": 900,
       "next": "billing_city"
     },
     "billing_city": {
       "say": "Billing city?",
       "tone": "authoritative",
       "capture": "billCity",
+      "pauseMs": 700,
       "next": "billing_state"
     },
     "billing_state": {
       "say": "Billing state?",
       "tone": "authoritative",
       "capture": "billState",
+      "pauseMs": 700,
       "next": "billing_zip"
     },
     "billing_zip": {
       "say": "Billing ZIP?",
       "tone": "authoritative",
       "capture": "billZip",
+      "pauseMs": 700,
       "next": "shipping_same"
     },
 
     "shipping_same": {
-      "say": "Is the shipping address the same as the billing address?",
+      "say": "Is the shipping address the same as billing?",
       "tone": "authoritative",
-      "branches": {
-        "yes": "contact_phone",
-        "no": "shipping_street"
-      }
+      "pauseMs": 600,
+      "branches": { "yes": "contact_phone", "no": "shipping_street" }
     },
     "shipping_street": {
-      "say": "What’s the shipping street address?",
+      "say": "Shipping street address?",
       "tone": "authoritative",
       "capture": "shipAddress1",
+      "pauseMs": 900,
       "next": "shipping_city"
     },
     "shipping_city": {
       "say": "Shipping city?",
       "tone": "authoritative",
       "capture": "shipCity",
+      "pauseMs": 700,
       "next": "shipping_state"
     },
     "shipping_state": {
       "say": "Shipping state?",
       "tone": "authoritative",
       "capture": "shipState",
+      "pauseMs": 700,
       "next": "shipping_zip"
     },
     "shipping_zip": {
       "say": "Shipping ZIP?",
       "tone": "authoritative",
       "capture": "shipZip",
+      "pauseMs": 700,
       "next": "contact_phone"
     },
 
     "contact_phone": {
-      "say": "What’s the best phone number for updates?",
+      "say": "Best phone number for updates and delivery questions?",
       "tone": "authoritative",
       "capture": "customerAltPhone",
+      "pauseMs": 900,
       "next": "contact_email"
     },
     "contact_email": {
-      "say": "What’s the best email for your receipt and tracking?",
+      "say": "Best email for your receipt and tracking?",
       "tone": "authoritative",
       "capture": "customerEmail",
+      "pauseMs": 900,
       "next": "payment_method"
     },
 
     "payment_method": {
-      "say": "Which payment method works best for you—card or bank?",
+      "say": "Which payment method works best—card or bank?",
       "tone": "authoritative",
-      "branches": {
-        "card": "card_number",
-        "bank": "bank_account_name",
-        "service": "hotline_offer",
-        "hesitate": "payment_reassure"
-      }
+      "pauseMs": 600,
+      "branches": { "card": "card_number", "bank": "bank_account_name", "service": "hotline_offer", "hesitate": "payment_reassure" }
     },
     "payment_reassure": {
-      "say": "You’re fully covered by our money-back guarantee, and there are no shipping fees or taxes. We’ll keep this simple and quick.",
+      "say": "All orders are covered by our money-back guarantee, and there are no shipping fees or taxes. We’ll keep this simple.",
       "tone": "empathetic",
+      "pauseMs": 500,
       "next": "payment_method"
     },
 
     "card_number": {
-      "say": "Please read me the full card number. I’ll confirm it back once, grouped for accuracy.",
+      "say": "Please read me the full card number—I'll confirm it back once, in groups, to ensure accuracy.",
       "tone": "authoritative",
       "capture": "creditCardNumber",
+      "pauseMs": 1200,
       "next": "card_exp_mo"
     },
     "card_exp_mo": {
       "say": "Expiration month?",
       "tone": "authoritative",
       "capture": "creditCardExpMonth",
+      "pauseMs": 700,
       "next": "card_exp_yr"
     },
     "card_exp_yr": {
       "say": "Expiration year?",
       "tone": "authoritative",
       "capture": "creditCardExpYear",
+      "pauseMs": 700,
       "next": "card_cvc"
     },
     "card_cvc": {
-      "say": "CVC on the back of the card? You’ll say it once.",
+      "say": "CVC on the back? You’ll say it once.",
       "tone": "authoritative",
       "capture": "creditCardCVC",
-      "next": "price_total"
+      "pauseMs": 700,
+      "next": "postdate_offer"
     },
 
     "bank_account_name": {
-      "say": "What name is on the bank account?",
+      "say": "Name on the bank account?",
       "tone": "authoritative",
       "capture": "bankAccountName",
+      "pauseMs": 800,
       "next": "bank_routing"
     },
     "bank_routing": {
       "say": "Routing number?",
       "tone": "authoritative",
       "capture": "bankRoutingNumber",
+      "pauseMs": 800,
       "next": "bank_account"
     },
     "bank_account": {
       "say": "Account number?",
       "tone": "authoritative",
       "capture": "bankAccountNumber",
+      "pauseMs": 900,
+      "next": "postdate_offer"
+    },
+
+    "postdate_offer": {
+      "say": "If timing is tight, I can schedule your billing for a future date and reserve today’s deal. Would you like to post-date the charge?",
+      "tone": "empathetic",
+      "pauseMs": 700,
+      "branches": { "yes": "postdate_capture", "no": "price_total" }
+    },
+    "postdate_capture": {
+      "say": "What date should we process the payment?",
+      "tone": "authoritative",
+      "capture": "postdate_iso",
+      "pauseMs": 800,
       "next": "price_total"
     },
 
     "price_total": {
-      "say": "For your {{product_choice}}, your total comes to {{human_price}}—with no shipping fees and no taxes.",
+      "say": "For your selection {{humanized_selection}}, your total today comes to {{human_price}}—with no shipping fees and no taxes.",
       "tone": "authoritative",
-      "logic": "format_human_currency",
+      "logic": "compute_total_and_humanize",
+      "pauseMs": 700,
+      "next": "readback_header"
+    },
+
+    "readback_header": {
+      "say": "Let me read that back to make sure I have everything correct.",
+      "tone": "calm_confidence",
+      "pauseMs": 400,
+      "next": "readback_name"
+    },
+    "readback_name": {
+      "say": "Name on card: {{creditCardName}}.",
+      "tone": "authoritative",
+      "pauseMs": 300,
+      "next": "readback_billing"
+    },
+    "readback_billing": {
+      "say": "Billing: {{billAddress1}}, {{billCity}}, {{billState}} {{billZip}}.",
+      "tone": "authoritative",
+      "pauseMs": 300,
+      "next": "readback_shipping"
+    },
+    "readback_shipping": {
+      "say": "Shipping: {{shipAddress1_or_billing}}, {{shipCity_or_billing}}, {{shipState_or_billing}} {{shipZip_or_billing}}.",
+      "tone": "authoritative",
+      "pauseMs": 300,
+      "next": "readback_contact"
+    },
+    "readback_contact": {
+      "say": "Contact: phone {{customerAltPhone}}, email {{customerEmail}}.",
+      "tone": "authoritative",
+      "pauseMs": 300,
+      "next": "readback_payment"
+    },
+    "readback_payment": {
+      "say": "Payment: card ending in {{cc_last4}} {{or_bank_mask}}.",
+      "tone": "authoritative",
+      "pauseMs": 300,
+      "next": "readback_selection"
+    },
+    "readback_selection": {
+      "say": "Items: {{readable_bundle_or_single}}.",
+      "tone": "authoritative",
+      "pauseMs": 350,
       "next": "readback_confirm"
     },
 
     "readback_confirm": {
-      "say": "Here’s what I have: {{primary_product}}{{upsell_suffix}} at {{human_price}}; shipping to {{ship_address_line}}; payment ending in {{last4}}. Is that all correct?",
-      "tone": "authoritative",
-      "branches": {
-        "yes": "capture_sale",
-        "no": "correct_details",
-        "service": "hotline_offer",
-        "hesitate": "readback_clarify"
-      }
+      "say": "Is everything I read back correct?",
+      "tone": "calm_confidence",
+      "pauseMs": 400,
+      "branches": { "yes": "capture_sale", "no": "readback_fix", "service": "hotline_offer" }
     },
-    "readback_clarify": {
-      "say": "No problem—what should I correct or update for you?",
+    "readback_fix": {
+      "say": "No problem—what needs to be corrected?",
       "tone": "empathetic",
-      "next": "readback_confirm"
-    },
-
-    "correct_details": {
-      "say": "Thank you. Let’s update that now.",
-      "tone": "empathetic",
-      "next": "readback_confirm"
+      "capture": "readback_correction",
+      "pauseMs": 900,
+      "next": "readback_header"
     },
 
     "capture_sale": {
       "say": "Perfect—processing now. You’ll receive an email receipt and tracking.",
       "tone": "absolute_certainty",
-      "toolCall": {
-        "tool": "log.sale.google.tool.json",
-        "intent": "append_saleslog12"
-      },
+      "toolCall": { "tool": "log.sale.google.tool.json", "intent": "append_saleslog12" },
+      "pauseMs": 500,
       "next": "closing_sale"
     },
 
     "closing_sale": {
-      "say": "Your order is confirmed. No shipping, no taxes, and your discount is locked in. Thank you for choosing Health America—you’re going to love the results. If you ever need anything or want to reorder, our number is 1-866-379-5131.",
+      "say": "Your order is confirmed. No shipping, no taxes, and your discount is locked in. Thank you for choosing Health America—you’re going to love the results. If you ever need anything or want to reorder, call us at 1-866-379-5131.",
       "tone": "absolute_certainty",
       "end": true
     },
@@ -375,9 +665,9 @@
     "catch_all": {
       "say": "I want to get this right for you. Could you say that a different way so I can help you faster?",
       "tone": "empathetic",
+      "pauseMs": 500,
       "next": "reason_for_call"
     }
   }
 }
-
 
