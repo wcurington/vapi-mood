@@ -1,119 +1,383 @@
 {
+  "meta": {
+    "version": "1.4",
+    "hotline": "1-866-379-5131",
+    "tools": {
+      "kb_csv": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv",
+      "kb_query": "query_KB.tool.json",
+      "logger": "log.sale.google.tool.json",
+      "mood_api": "Alex-mood"
+    },
+    "tones": {
+      "enthusiastic": { "pitch": "+5%", "rate": "+15%", "volume": "loud" },
+      "empathetic": { "pitch": "-5%", "rate": "-10%", "volume": "soft" },
+      "authoritative": { "pitch": "-3%", "rate": "0%", "volume": "loud" },
+      "calm_confidence": { "pitch": "0%", "rate": "-5%", "volume": "medium" },
+      "absolute_certainty": { "pitch": "-8%", "rate": "-5%", "volume": "x-loud" },
+      "neutral": { "pitch": "0%", "rate": "0%", "volume": "medium" }
+    },
+    "currencySpeechRule": "Speak prices as human phrases (eighty-nine ninety-nine). Avoid saying 'point'. If SSML is available, use <say-as interpret-as=\"currency\">."
+  },
+
   "states": {
     "start": {
       "say": "Hello, this is Alex with Health America. How are you doing today?",
       "tone": "enthusiastic",
       "next": "reason_for_call"
     },
+
     "reason_for_call": {
-      "say": "The reason I’m calling is to follow up on the health information we sent you. Did you get that okay?",
+      "say": "The reason I’m calling is to follow up on the information we sent out. Did you get that okay?",
       "tone": "enthusiastic",
       "branches": {
-        "yes": "qualify_start",
-        "no": "qualify_start",
-        "service": "hotline_offer"
+        "yes": "qualify_intro",
+        "no": "qualify_intro",
+        "service": "hotline_offer",
+        "hesitate": "qualify_intro"
       }
     },
+
     "hotline_offer": {
-      "say": "I understand you’d like customer service. You can reach our dedicated support line at 1-866-379-5131. Would you like me to help with something here first, or would you prefer to call them directly?",
+      "say": "Absolutely. Our customer care and reorder line is one eight six six… three seven nine… five one three one. I’ll repeat that normally: 1-866-379-5131. I can also help you right now—would you like me to take care of this for you?",
       "tone": "empathetic",
       "branches": {
-        "yes": "qualify_start",
-        "no": "end_conversation"
+        "yes": "qualify_intro",
+        "no": "farewell_soft"
       }
     },
-    "qualify_start": {
-      "say": "Let me ask you a few quick questions to better understand your health.",
+
+    "qualify_intro": {
+      "say": "Great—let me ask a few quick questions to better understand your health. I’ll keep it simple and quick.",
       "tone": "curious",
-      "next": "qualify_q1"
+      "next": "q1_joint"
     },
-    "qualify_q1": {
-      "say": "Do you have arthritis or joint stiffness?",
+
+    "q1_joint": {
+      "say": "Do you have arthritis or joint pain and stiffness?",
       "tone": "curious",
       "capture": "joint_pain",
-      "next": "qualify_q2"
+      "next": "q2_pain"
     },
-    "qualify_q2": {
-      "say": "On a scale of 1 to 10, what’s your pain today?",
+    "q2_pain": {
+      "say": "On a scale of one to ten, what’s your pain today?",
       "tone": "curious",
       "capture": "pain_level",
-      "next": "qualify_q3"
+      "next": "q3_age"
     },
-    "qualify_q3": {
-      "say": "If you don’t mind me asking, how old are you?",
+    "q3_age": {
+      "say": "If you don’t mind me asking, how old are you? You sound great—much younger than that.",
       "tone": "curious",
-      "capture": "age",
-      "next": "branch_routing"
+      "capture": "age_years",
+      "next": "q4_diabetes"
     },
-    "branch_routing": {
-      "logic": "map_flags_to_category",
-      "next": "product_pitch"
+    "q4_diabetes": {
+      "say": "Do you deal with diabetes? Is it type one or type two? Is it managed, and what do you take for it?",
+      "tone": "curious",
+      "capture": "diabetes_detail",
+      "next": "q5_energy"
     },
-    "product_pitch": {
-      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{primary_benefits}}. Many customers also add {{upsell_product}} for {{upsell_benefits}}.",
+    "q5_energy": {
+      "say": "How are your energy levels day to day?",
+      "tone": "curious",
+      "capture": "energy_level",
+      "next": "q6_breathing"
+    },
+    "q6_breathing": {
+      "say": "Any breathing issues or shortness of breath?",
+      "tone": "curious",
+      "capture": "breathing_issue",
+      "next": "q7_sleep"
+    },
+    "q7_sleep": {
+      "say": "Do you feel your sleep is restful?",
+      "tone": "curious",
+      "capture": "sleep_quality",
+      "next": "q8_senses"
+    },
+    "q8_senses": {
+      "say": "How are your hearing and vision?",
+      "tone": "curious",
+      "capture": "hearing_vision",
+      "next": "q9_weight"
+    },
+    "q9_weight": {
+      "say": "Are you happy with your current weight? About how many pounds are you looking to lose?",
+      "tone": "curious",
+      "capture": "weight_goal_lbs",
+      "next": "q10_bp"
+    },
+    "q10_bp": {
+      "say": "How is your blood pressure? What do you do to treat it?",
+      "tone": "curious",
+      "capture": "bp_detail",
+      "next": "q11_cognitive"
+    },
+    "q11_cognitive": {
+      "say": "Any memory or balance issues—brain fog or trouble focusing?",
+      "tone": "curious",
+      "capture": "cognitive_issue",
+      "next": "q12_immune"
+    },
+    "q12_immune": {
+      "say": "How is your immune system? Are you prone to colds, the flu, sinus issues, or allergies?",
+      "tone": "curious",
+      "capture": "immune_issue",
+      "next": "needs_confirm"
+    },
+
+    "needs_confirm": {
+      "say": "From what you’ve shared, we’re focusing on your top concern first: {{primary_goal}}—and you also mentioned {{secondary_goal}}. That matches what I’m seeing.",
+      "tone": "empathetic",
+      "logic": "resolve_primary_secondary_goals",
+      "next": "kb_select"
+    },
+
+    "kb_select": {
+      "say": "Let me match you with the best fit from our line.",
+      "tone": "authoritative",
+      "toolCall": {
+        "tool": "PRODUCT_KNOWLEDGEBASE Sheet(1).csv",
+        "intent": "map_flags_to_products"
+      },
+      "next": "value_story_pitch"
+    },
+
+    "value_story_pitch": {
+      "say": "Based on what you’ve shared, the best fit is {{primary_product}}. It supports {{benefits_to_outcomes}}—for example, {{key_benefits}}—so you can {{tangible_outcome}}. Many customers also add {{upsell_product}} to {{upsell_benefit}}. It’s optional, but it can accelerate results.",
       "tone": "enthusiastic",
       "next": "trial_close"
     },
+
     "trial_close": {
-      "say": "That sounds like exactly what you’re looking for, doesn’t it?",
+      "say": "That sounds like exactly what you were hoping to find, doesn’t it?",
       "tone": "calm_confidence",
       "branches": {
         "yes": "offer_choice",
-        "hesitate": "objection_handling",
-        "service": "hotline_offer"
+        "service": "hotline_offer",
+        "hesitate": "objection_router"
       }
     },
+
     "offer_choice": {
-      "say": "Would you like the single bottle or the value pack that saves more per bottle?",
+      "say": "Perfect. Would you like the single bottle, or the value pack that saves more per bottle?",
       "tone": "authoritative",
       "capture": "product_choice",
-      "next": "shipping_address"
+      "next": "identity_intro"
     },
-    "objection_handling": {
-      "logic": "match_objection",
+
+    "objection_router": {
+      "say": "I completely understand.",
       "tone": "empathetic",
-      "responses": {
-        "price": "I completely understand — health is an investment. I can offer up to 15% off today. No shipping or taxes.",
-        "trust": "Health America has been trusted nationwide for years, ships from the U.S., and is covered by our money-back guarantee.",
-        "delay": "I respect that. But today’s discount and bonus gift are only available now. You’re fully covered by our guarantee."
-      },
+      "logic": "identify_objection",
+      "next": "objection_handle"
+    },
+
+    "objection_handle": {
+      "say": "{{objection_reply}}",
+      "tone": "authoritative",
       "next": "trial_close"
     },
-    "shipping_address": {
-      "say": "Can I have your shipping address, please?",
-      "tone": "empathetic",
-      "capture": "shipping_address",
-      "next": "billing_same"
+
+    "identity_intro": {
+      "say": "Great, I’ll take care of everything for you. I’ll capture the details clearly and confirm back as we go.",
+      "tone": "authoritative",
+      "next": "name_on_card"
     },
-    "billing_same": {
-      "say": "Is your billing address the same as your shipping address?",
-      "tone": "empathetic",
+
+    "name_on_card": {
+      "say": "First, what’s your full name exactly as it appears on the card?",
+      "tone": "authoritative",
+      "capture": "creditCardName",
+      "next": "billing_street"
+    },
+    "billing_street": {
+      "say": "What’s the billing street address for the card? Include apartment or unit if any.",
+      "tone": "authoritative",
+      "capture": "billAddress1",
+      "next": "billing_city"
+    },
+    "billing_city": {
+      "say": "Billing city?",
+      "tone": "authoritative",
+      "capture": "billCity",
+      "next": "billing_state"
+    },
+    "billing_state": {
+      "say": "Billing state?",
+      "tone": "authoritative",
+      "capture": "billState",
+      "next": "billing_zip"
+    },
+    "billing_zip": {
+      "say": "Billing ZIP?",
+      "tone": "authoritative",
+      "capture": "billZip",
+      "next": "shipping_same"
+    },
+
+    "shipping_same": {
+      "say": "Is the shipping address the same as the billing address?",
+      "tone": "authoritative",
       "branches": {
-        "yes": "payment_capture",
-        "no": "billing_address"
+        "yes": "contact_phone",
+        "no": "shipping_street"
       }
     },
-    "billing_address": {
-      "say": "Please provide your billing address.",
-      "tone": "empathetic",
-      "capture": "billing_address",
-      "next": "payment_capture"
-    },
-    "payment_capture": {
-      "say": "Which card would you like to use?",
+    "shipping_street": {
+      "say": "What’s the shipping street address?",
       "tone": "authoritative",
-      "capture": "payment_info",
-      "next": "confirm_order"
+      "capture": "shipAddress1",
+      "next": "shipping_city"
     },
-    "confirm_order": {
-      "say": "Your order is confirmed. No shipping, no taxes, discount locked in. Thank you for choosing Health America — you’re going to love the results. If you ever need assistance, call our support line at 1-866-379-5131.",
+    "shipping_city": {
+      "say": "Shipping city?",
+      "tone": "authoritative",
+      "capture": "shipCity",
+      "next": "shipping_state"
+    },
+    "shipping_state": {
+      "say": "Shipping state?",
+      "tone": "authoritative",
+      "capture": "shipState",
+      "next": "shipping_zip"
+    },
+    "shipping_zip": {
+      "say": "Shipping ZIP?",
+      "tone": "authoritative",
+      "capture": "shipZip",
+      "next": "contact_phone"
+    },
+
+    "contact_phone": {
+      "say": "What’s the best phone number for updates?",
+      "tone": "authoritative",
+      "capture": "customerAltPhone",
+      "next": "contact_email"
+    },
+    "contact_email": {
+      "say": "What’s the best email for your receipt and tracking?",
+      "tone": "authoritative",
+      "capture": "customerEmail",
+      "next": "payment_method"
+    },
+
+    "payment_method": {
+      "say": "Which payment method works best for you—card or bank?",
+      "tone": "authoritative",
+      "branches": {
+        "card": "card_number",
+        "bank": "bank_account_name",
+        "service": "hotline_offer",
+        "hesitate": "payment_reassure"
+      }
+    },
+    "payment_reassure": {
+      "say": "You’re fully covered by our money-back guarantee, and there are no shipping fees or taxes. We’ll keep this simple and quick.",
+      "tone": "empathetic",
+      "next": "payment_method"
+    },
+
+    "card_number": {
+      "say": "Please read me the full card number. I’ll confirm it back once, grouped for accuracy.",
+      "tone": "authoritative",
+      "capture": "creditCardNumber",
+      "next": "card_exp_mo"
+    },
+    "card_exp_mo": {
+      "say": "Expiration month?",
+      "tone": "authoritative",
+      "capture": "creditCardExpMonth",
+      "next": "card_exp_yr"
+    },
+    "card_exp_yr": {
+      "say": "Expiration year?",
+      "tone": "authoritative",
+      "capture": "creditCardExpYear",
+      "next": "card_cvc"
+    },
+    "card_cvc": {
+      "say": "CVC on the back of the card? You’ll say it once.",
+      "tone": "authoritative",
+      "capture": "creditCardCVC",
+      "next": "price_total"
+    },
+
+    "bank_account_name": {
+      "say": "What name is on the bank account?",
+      "tone": "authoritative",
+      "capture": "bankAccountName",
+      "next": "bank_routing"
+    },
+    "bank_routing": {
+      "say": "Routing number?",
+      "tone": "authoritative",
+      "capture": "bankRoutingNumber",
+      "next": "bank_account"
+    },
+    "bank_account": {
+      "say": "Account number?",
+      "tone": "authoritative",
+      "capture": "bankAccountNumber",
+      "next": "price_total"
+    },
+
+    "price_total": {
+      "say": "For your {{product_choice}}, your total comes to {{human_price}}—with no shipping fees and no taxes.",
+      "tone": "authoritative",
+      "logic": "format_human_currency",
+      "next": "readback_confirm"
+    },
+
+    "readback_confirm": {
+      "say": "Here’s what I have: {{primary_product}}{{upsell_suffix}} at {{human_price}}; shipping to {{ship_address_line}}; payment ending in {{last4}}. Is that all correct?",
+      "tone": "authoritative",
+      "branches": {
+        "yes": "capture_sale",
+        "no": "correct_details",
+        "service": "hotline_offer",
+        "hesitate": "readback_clarify"
+      }
+    },
+    "readback_clarify": {
+      "say": "No problem—what should I correct or update for you?",
+      "tone": "empathetic",
+      "next": "readback_confirm"
+    },
+
+    "correct_details": {
+      "say": "Thank you. Let’s update that now.",
+      "tone": "empathetic",
+      "next": "readback_confirm"
+    },
+
+    "capture_sale": {
+      "say": "Perfect—processing now. You’ll receive an email receipt and tracking.",
+      "tone": "absolute_certainty",
+      "toolCall": {
+        "tool": "log.sale.google.tool.json",
+        "intent": "append_saleslog12"
+      },
+      "next": "closing_sale"
+    },
+
+    "closing_sale": {
+      "say": "Your order is confirmed. No shipping, no taxes, and your discount is locked in. Thank you for choosing Health America—you’re going to love the results. If you ever need anything or want to reorder, our number is 1-866-379-5131.",
       "tone": "absolute_certainty",
       "end": true
     },
-    "end_conversation": {
-      "say": "Thank you for your time today. You can reach us anytime at 1-866-379-5131.",
-      "tone": "neutral",
+
+    "farewell_soft": {
+      "say": "Thank you for your time today. If you need anything or want to reorder later, we’re at 1-866-379-5131.",
+      "tone": "empathetic",
       "end": true
+    },
+
+    "catch_all": {
+      "say": "I want to get this right for you. Could you say that a different way so I can help you faster?",
+      "tone": "empathetic",
+      "next": "reason_for_call"
     }
   }
 }
+
+
