@@ -411,3 +411,140 @@ router.post("/v1/payments/stripe/payment-link", async (req, res) => {
 });
 
 module.exports = router;
+// ---------- Authorize.Net: Create Customer + Payment Profile ----------
+router.post("/v1/payments/authorize-net/profile", async (req, res) => {
+  try {
+    const {
+      customer_id, // your internal id
+      description,
+      email,
+      card = {}, // { number, exp_month, exp_year, cvc }
+      billing_address = {}
+    } = req.body || {};
+
+    const endpoint =
+      AUTHNET_ENV === "production"
+        ? "https://api2.authorize.net/xml/v1/request.api"
+        : "https://apitest.authorize.net/xml/v1/request.api";
+
+    const payload = {
+      createCustomerProfileRequest: {
+        merchantAuthentication: {
+          name: AUTHNET_LOGIN_ID,
+          transactionKey: AUTHNET_TRANSACTION_KEY
+        },
+        profile: {
+          merchantCustomerId: customer_id || `alex-${Date.now()}`,
+          description: description || "Alex phone order customer",
+          email: email,
+          paymentProfiles: [
+            {
+              customerType: "individual",
+              billTo: {
+                firstName: billing_address.first_name,
+                lastName: billing_address.last_name,
+                address: billing_address.address,
+                city: billing_address.city,
+                state: billing_address.state,
+                zip: billing_address.zip,
+                country: billing_address.country || "US"
+              },
+              payment: {
+                creditCard: {
+                  cardNumber: card.number,
+                  expirationDate: `${String(card.exp_year).padStart(4, "0")}-${String(card.exp_month).padStart(2, "0")}`,
+                  cardCode: card.cvc
+                }
+              }
+            }
+          ]
+        },
+        validationMode: "testMode" // or "liveMode"
+      }
+    };
+
+    const r = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+
+    if (!j.customerProfileId) {
+      return res.status(502).json({ error: "Failed to create profile", raw: j });
+    }
+
+    res.json({
+      ok: true,
+      customerProfileId: j.customerProfileId,
+      customerPaymentProfileId: j.customerPaymentProfileIdList && j.customerPaymentProfileIdList[0],
+      card: { last4: card.number.slice(-4), exp_month: card.exp_month, exp_year: card.exp_year }
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ---------- Authorize.Net: Schedule a Transaction for Future Date ----------
+router.post("/v1/payments/authorize-net/schedule", async (req, res) => {
+  try {
+    const {
+      profile_id,
+      payment_profile_id,
+      amount,
+      run_date, // YYYY-MM-DD
+      invoice_number,
+      description
+    } = req.body || {};
+
+    if (!profile_id || !payment_profile_id) {
+      return res.status(400).json({ error: "Missing profile_id or payment_profile_id" });
+    }
+
+    const endpoint =
+      AUTHNET_ENV === "production"
+        ? "https://api2.authorize.net/xml/v1/request.api"
+        : "https://apitest.authorize.net/xml/v1/request.api";
+
+    const payload = {
+      ARBCreateSubscriptionRequest: {
+        merchantAuthentication: {
+          name: AUTHNET_LOGIN_ID,
+          transactionKey: AUTHNET_TRANSACTION_KEY
+        },
+        subscription: {
+          name: description || "Scheduled by Alex",
+          paymentSchedule: {
+            interval: { length: 1, unit: "months" }, // dummy interval
+            startDate: run_date, // first payment date
+            totalOccurrences: 1  // run once
+          },
+          amount: amount,
+          billTo: {},
+          profile: {
+            customerProfileId: profile_id,
+            customerPaymentProfileId: payment_profile_id
+          },
+          order: {
+            invoiceNumber: invoice_number || `alex-${Date.now()}`
+          }
+        }
+      }
+    };
+
+    const r = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+
+    if (!j.subscriptionId) {
+      return res.status(502).json({ error: "Failed to schedule transaction", raw: j });
+    }
+
+    res.json({ ok: true, subscriptionId: j.subscriptionId, run_date });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
