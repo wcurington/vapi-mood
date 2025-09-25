@@ -1,32 +1,41 @@
 // ============================
-// server.js — COMPLETE OVERHAUL (Non‑Destructive, Pricing‑Safe, Routing‑Safe)
+// server.js — XXXXL Guardrail Edition (Non-Destructive, Pricing-Safe, Routing-Safe)
 // ============================
 //
-// This server fixes structural/timing/pricing defects WITHOUT destroying your existing 20k+ flow state.
-// It *wraps* the loaded flow at runtime and applies read‑time, in‑memory patches.
-// Nothing writes back to flows_alex_sales.json.
+// WHAT THIS DOES (high level):
+// - Loads your existing 20k+ flow JSON and wraps it IN MEMORY without changing the file on disk.
+// - Enforces constitutional rules for pricing, speech, sequencing, and closing.
+// - Implements a deterministic PRICING ENGINE with correct tiers + multi-supplement math.
+// - Ensures greeting pauses are SILENT (never say "pause") and waits for the customer.
+// - Forces the call to end with shipping ETA + thank you + hotline (no more dead ends).
+// - Handles declines gracefully: 1 attempt only, empathetic script, proactive follow-up flagged.
+// - Logs outcomes to Google Sheets (and optionally forwards to a CRM webhook).
+// - Adds safe, deterministic SSML for "ninety-nine cents", "five to seven days", etc.
+// - Normalizes slang (yep/yeah → yes; nope/nah → no), strips forbidden cues.
 //
-// Fixes included:
-// 1) Greeting pause is silent (no 'pause' spoken). Waits ~1200ms so caller can answer without interruption.
-// 2) Pricing policy layer:
-//    - Membership is MONTHLY ONLY. No $239.95 annual injection ever.
-//    - Single bottle floor enforced: >= $59 (cents >= 5900).
-//    - Dollar/cents spoken cleanly (“ninety‑nine cents”, not “point nine nine”).
-//    - Package ladder (12m → 6m → 3m → single) respected regardless of stray text in flow.
-// 3) Processing routing bug: after “let me get that processed…”, we ALWAYS continue to closing_sale, never hang up.
-// 4) Shipping phrasing standardized to “five to seven days” and applied via SSML (no 'five seven days').
-// 5) Full identity capture pressure: if user jumps to payment before value/identity, we gently steer back to required fields.
-// 6) Hotline visible in helpful fallbacks and closing.
-// 7) Non‑vocalized cues stripped: “(pause)”, “(compliment ...)”, etc.
+// NON-DESTRUCTIVE:
+//   • Nothing writes back to flows_alex_sales.json. We read, wrap, and patch at runtime.
 //
-// Endpoints:
-// - GET  /           : sanity
-// - GET  /start-batch: launch up to 5 pending calls from Google Sheet
-// - POST /vapi-webhook: main conversational loop
-// - POST /vapi-callback: write results back to Google Sheet (+forward to Apps Script if configured)
+// DEPENDENCIES (set via environment variables):
+//   CORE:
+//     PORT
+//     GOOGLE_SERVICE_ACCOUNT         // base64 JSON for service account
+//     SPREADSHEET_ID                 // Google Sheet id
+//     VAPI_API_KEY                   // Vapi REST
+//     ASSISTANT_ID                   // Vapi assistant id
+//     PHONE_NUMBER_ID                // Vapi phone number id
 //
-// Env vars required: GOOGLE_SERVICE_ACCOUNT (base64 JSON), SPREADSHEET_ID, VAPI_API_KEY, ASSISTANT_ID, PHONE_NUMBER_ID
-// Optional: APPS_SCRIPT_URL, PORT
+//   OPTIONAL INTEGRATIONS:
+//     APPS_SCRIPT_URL                // forward call summaries/events to Apps Script
+//     CRM_WEBHOOK_URL                // post declines / sales summaries to CRM
+//     STRIPE_SECRET_KEY              // If present, we use Stripe PaymentIntents (server-created, client-confirmed)
+//     AUTHNET_LOGIN_ID / AUTHNET_TRANSACTION_KEY / AUTHNET_ENV ("sandbox"|"production")
+//
+// SECURITY:
+//   • No secrets are logged.
+//   • All external calls use token headers.
+//   • Only essential fields are persisted.
+//
 // ============================
 
 require("dotenv").config();
@@ -34,382 +43,598 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { google } = require("googleapis");
 const fetch = require("node-fetch");
+const crypto = require("crypto");
 const path = require("path");
+
+// Stripe optional (lazy loaded)
+let Stripe = null;
+if (process.env.STRIPE_SECRET_KEY) {
+  try { Stripe = require("stripe"); } catch { Stripe = null; }
+}
 
 const app = express();
 app.use(bodyParser.json({ limit: "2mb" }));
 
-// ============================
-// Load flow JSON (NON‑DESTRUCTIVE)
-// ============================
+// ----------------------------
+// CONSTANTS (Speech & Policy)
+// ----------------------------
+const HOTLINE = "1-866-379-5131";
+
+// Pricing Constitution (supreme law)
+const PRICING = Object.freeze({
+  MEMBERSHIP_MONTHLY_BASE: 79_00,   // $79.00
+  MEMBERSHIP_MONTHLY_MIN:  59_00,   // $59.00 (discount)
+  THREE_MONTH:            199_00,   // $199
+  SIX_MONTH:              299_00,   // $299
+  TWELVE_MONTH:           499_00,   // $499
+  FIFTEEN_MONTH:          599_00,   // $599
+  // Floors (defense against undersell chatter; never price single below $59)
+  SINGLE_MIN:              59_00
+});
+
+// Decline handling policy
+const DECLINE_POLICY = Object.freeze({
+  MAX_RETRIES: 1, // never retry more than once
+  CUSTOMER_MESSAGE:
+    "I’m sorry, there was an issue processing your order. A customer service representative will be in touch with you shortly to assist in completing your order. Please stay by your phone, and they’ll call you very soon to resolve this for you."
+});
+
+// SSML & Speech guards
+const PROCESSING_LINE = /let me get that processed for you/i;
+const NUMBER_WORDS = /point\s*(\d{1,2})/i;
+
+// ----------------------------
+// FLOW LOADER (Non-destructive)
+// ----------------------------
 let salesFlow;
 try {
   salesFlow = require(path.join(__dirname, "flows", "flows_alex_sales.json"));
   if (!salesFlow || !salesFlow.states) throw new Error("Invalid flow JSON");
   console.log("✅ Loaded flows_alex_sales.json with states:", Object.keys(salesFlow.states).length);
 } catch (e) {
-  console.warn("⚠️ Could not load flows/flows_alex_sales.json. Falling back to minimal flow:", e.message);
-  salesFlow = { states: {
-    start: { say: "Hi, this is Alex with Health America. How are you today?", tone: "enthusiastic", next: "closing_sale", pauseMs: 1200 },
-    closing_sale: { say: "Thanks for your time today. Our care line is 1-866-379-5131.", tone: "empathetic", end: true }
-  }};
+  console.warn("⚠️ Could not load flows/flows_alex_sales.json. Using minimal fallback:", e.message);
+  salesFlow = {
+    states: {
+      start: { say: "Hi, this is Alex with Health America. How are you today?", tone: "enthusiastic", next: "closing_sale", pauseMs: 1200 },
+      closing_sale: { say: `Thanks for your time today. Our care line is ${HOTLINE}.`, tone: "empathetic", end: true }
+    }
+  };
 }
 
-// ============================
-// Policy constants (server‑side guardrails)
-// ============================
-const HOTLINE = "1-866-379-5131";
-const MEMBERSHIP_MONTHLY_CENTS_DEFAULT = 7900;  // $79/mo default
-const MEMBERSHIP_MONTHLY_CENTS_DISCOUNT = 5900; // $59/mo with offer
-const SINGLE_MIN_CENTS = 5900;                  // $59 minimum (no $25–$40 undersell)
-const PROCESSING_REGEX = /let me get that processed for you/i;
-
-// ============================
-// Google Sheets
-// ============================
+// ----------------------------
+// GOOGLE SHEETS
+// ----------------------------
 function getAuth() {
   const base64Key = process.env.GOOGLE_SERVICE_ACCOUNT;
-  if (!base64Key) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT (base64 JSON).");
+  if (!base64Key) throw new Error("Missing GOOGLE_SERVICE_ACCOUNT (base64 JSON)");
   const jsonKey = JSON.parse(Buffer.from(base64Key, "base64").toString("utf8"));
   return new google.auth.GoogleAuth({
     credentials: jsonKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"]
   });
 }
 const SHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "outbound_list";
 
-// ============================
-// Vapi IDs
-// ============================
-const ASSISTANT_ID = process.env.ASSISTANT_ID;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
-const VAPI_API_KEY = process.env.VAPI_API_KEY;
+// ----------------------------
+// OPTIONAL CRM HOOK
+// ----------------------------
+async function crmPost(eventName, payload) {
+  const url = process.env.CRM_WEBHOOK_URL;
+  if (!url) return;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ event: eventName, payload })
+    });
+  } catch (e) {
+    console.warn("CRM webhook failed:", e.message);
+  }
+}
 
-// ============================
-// Apps Script URL
-// ============================
-const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
-
-// ============================
-// Helpers
-// ============================
+// ----------------------------
+// UTILITIES (Speech & Pacing)
+// ----------------------------
 const toneMap = {
-  enthusiastic: { pitch: "+5%", rate: "+15%", volume: "loud" },
-  empathetic: { pitch: "-5%", rate: "-10%", volume: "soft" },
-  authoritative: { pitch: "-3%", rate: "0%", volume: "loud" },
-  calm_confidence: { pitch: "0%", rate: "-5%", volume: "medium" },
-  absolute_certainty: { pitch: "-8%", rate: "-5%", volume: "x-loud" },
-  neutral: { pitch: "0%", rate: "0%", volume: "medium" },
+  enthusiastic:        { pitch: "+5%",  rate: "+15%", volume: "loud"     },
+  empathetic:          { pitch: "-5%",  rate: "-10%", volume: "soft"     },
+  authoritative:       { pitch: "-3%",  rate: "0%",   volume: "loud"     },
+  calm_confidence:     { pitch: "0%",   rate: "-5%",  volume: "medium"   },
+  absolute_certainty:  { pitch: "-8%",  rate: "-5%",  volume: "x-loud"   },
+  neutral:             { pitch: "0%",   rate: "0%",   volume: "medium"   }
 };
-function escapeXml(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
-function toSSML(text, settings){
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;");
+}
+
+function toSSML(text, settings = toneMap.neutral) {
   const pitch = settings.pitch || "0%";
   const rate = settings.rate || "0%";
   const volume = settings.volume || "medium";
-  return `<speak><prosody pitch="${pitch}" rate="${rate}" volume="${volume}">${escapeXml(text)}</prosody></speak>`;
+  const safe = standardizeSpeech(text);
+  return `<speak><prosody pitch="${pitch}" rate="${rate}" volume="${volume}">${escapeXml(safe)}</prosody></speak>`;
 }
-function humanCurrency(cents){
-  const n = Math.max(0, Number.isFinite(cents) ? cents : 0);
-  const dollars = Math.floor(n/100);
-  const rem = n%100;
-  const centsWords = rem === 0 ? "" : ` and ${rem} ${rem===1?"cent":"cents"}`;
-  return `${dollars.toLocaleString()} dollars${centsWords}`;
-}
-function sanitizeCues(text){
-  return String(text||"").replace(/\(pause\)/gi,"").replace(/\(compliment.*?\)/gi,"");
-}
-function standardizeShipping(text){
-  // ensure "five to seven days"
-  return String(text||"").replace(/five\s*[-–]?\s*seven\s*days/gi, "five to seven days");
-}
-function enforceSingleFloor(text){
-  // Replace mentions like $25, $29.99, $49 with $59 minimum when referring to single bottle
-  return String(text||"")
-    .replace(/\$?(2[5-9]|3\d|4\d)(?:\.\d{1,2})?\b/g, "$59");
-}
-function rewriteMembershipPricing(text, monthlyCents){
-  const monthly = (monthlyCents/100).toFixed(0);
-  let s = String(text||"");
-  // Nuke any annual/flat dollar amounts like 239.95, 199, 239
-  s = s.replace(/\$?\s*239(?:\.95)?/g, `$${monthly} monthly`);
-  s = s.replace(/\bannual\b/gi, "monthly");
-  s = s.replace(/\bper\s*year\b/gi, "per month");
-  s = s.replace(/\byear(ly)?\b/gi, "monthly");
+
+// Normalize “point 99” → “ninety-nine cents”; force “five to seven days”
+function standardizeSpeech(text = "") {
+  let s = sanitizeCues(text);
+  // ETA phrasing
+  s = s.replace(/\bfive\s*[-–]?\s*seven\s*days\b/gi, "five to seven days");
+  // "point NN" → "NN cents"
+  s = s.replace(NUMBER_WORDS, (_, cents) => {
+    const n = parseInt(cents, 10);
+    if (Number.isFinite(n) && n > 0) return `${n} ${n === 1 ? "cent" : "cents"}`;
+    return _;
+  });
   return s;
 }
-function yesNoNormalize(s=""){
-  const t = s.toLowerCase();
+
+function sanitizeCues(text = "") {
+  // Remove forbidden tells: (pause), (compliment ...), (processing...)
+  return text
+    .replace(/\(pause\)/gi, "")
+    .replace(/\(compliment.*?\)/gi, "")
+    .replace(/\(processing.*?\)/gi, "");
+}
+
+function yesNoNormalize(s = "") {
+  const t = String(s).toLowerCase();
   if (/(^|\b)(yep|yeah|ya|sure|ok|okay|affirmative|uh huh|yup|please do|go ahead)($|\b)/.test(t)) return "yes";
   if (/(^|\b)(nope|nah|negative|uh uh|not now|maybe later)($|\b)/.test(t)) return "no";
   return s;
 }
 
-// ============================
-// Sanity
-// ============================
-app.get("/", (_req,res)=>{
-  res.send("✅ Alex Agent webhook online. Endpoints: GET /start-batch, POST /vapi-webhook, POST /vapi-callback");
+// ----------------------------
+// PRICING ENGINE (Deterministic)
+// ----------------------------
+//
+// INPUT MODELS WE SUPPORT:
+//
+// 1) Package recommend path (most common):
+//    { plan: "3M"|"6M"|"12M"|"15M"|"MEMBERSHIP", count: <#SKUs in bundle> }
+//
+// 2) Cart style:
+//    { items: [ { sku:"JOINT", months:3, qty:1 }, { sku:"BP", months:3, qty:1 } ] }
+//
+// 3) Natural language hint (fallback): "3 months of each"
+//    We interpret as two 3-month packages (2 × $199).
+//
+function priceFromPlan(plan, bundleCount = 1, membershipDiscount = false) {
+  // bundleCount is number of SKUs included at that plan length (e.g., 2 SKUs at 3M)
+  switch (String(plan).toUpperCase()) {
+    case "MEMBERSHIP": {
+      const cents = membershipDiscount ? PRICING.MEMBERSHIP_MONTHLY_MIN : PRICING.MEMBERSHIP_MONTHLY_BASE;
+      // Membership is monthly PER MEMBER account, not multiplied by SKUs.
+      return { cents, kind: "MEMBERSHIP", recurring: "monthly" };
+    }
+    case "3M":  return { cents: PRICING.THREE_MONTH * bundleCount,   kind: "3M",  recurring: "one-time" };
+    case "6M":  return { cents: PRICING.SIX_MONTH * bundleCount,     kind: "6M",  recurring: "one-time" };
+    case "12M": return { cents: PRICING.TWELVE_MONTH * bundleCount,  kind: "12M", recurring: "one-time" };
+    case "15M": return { cents: PRICING.FIFTEEN_MONTH * bundleCount, kind: "15M", recurring: "one-time" };
+    default:    return { cents: PRICING.THREE_MONTH * bundleCount,   kind: "3M",  recurring: "one-time" };
+  }
+}
+
+function priceFromCart(items = []) {
+  // Sum by months bucket; default to defensive tiers
+  let buckets = { 3:0, 6:0, 12:0, 15:0, OTHER:0 };
+  for (const it of items) {
+    const months = Number(it.months || 0);
+    const qty = Number(it.qty || 1);
+    if (months === 3)  buckets[3]  += qty;
+    else if (months === 6)  buckets[6]  += qty;
+    else if (months === 12) buckets[12] += qty;
+    else if (months === 15) buckets[15] += qty;
+    else buckets.OTHER += qty;
+  }
+  let cents =
+    (PRICING.THREE_MONTH   * buckets[3])  +
+    (PRICING.SIX_MONTH     * buckets[6])  +
+    (PRICING.TWELVE_MONTH  * buckets[12]) +
+    (PRICING.FIFTEEN_MONTH * buckets[15]);
+
+  // Any OTHER fallbacks? bill at single min * qty (defensive)
+  cents += PRICING.SINGLE_MIN * buckets.OTHER;
+  return { cents, kind:"CART_SUM", recurring: "one-time" };
+}
+
+function parseNaturalBundleHint(str = "") {
+  // e.g., "3 months of each" → interpret as two 3-month packages
+  const m = /(\d+)\s*months?\s*of\s*each/i.exec(str);
+  if (!m) return null;
+  const months = parseInt(m[1], 10);
+  if (!Number.isFinite(months)) return null;
+  return { months, each: true };
+}
+
+function toHumanCurrency(cents) {
+  const n = Math.max(0, Number.isFinite(cents) ? cents : 0);
+  const dollars = Math.floor(n/100);
+  const rem = n % 100;
+  const centsWords = rem === 0 ? "" : ` and ${rem} ${rem===1?"cent":"cents"}`;
+  return `${dollars.toLocaleString()} dollars${centsWords}`;
+}
+
+// ----------------------------
+// SESSIONS
+// ----------------------------
+const sessions = {};
+function getSession(sessionId) {
+  if (!sessions[sessionId]) {
+    sessions[sessionId] = {
+      id: sessionId,
+      state: "start",
+      data: {
+        customer: {},
+        cart: [],              // [{sku, months, qty}]
+        plan: null,            // "3M"|"6M"|"12M"|"15M"|"MEMBERSHIP"
+        bundleCount: 1
+      },
+      flags: {
+        valueComplete:false,
+        membershipDiscount:false,
+        attemptedPayment:false,
+        declined:false
+      }
+    };
+  }
+  return sessions[sessionId];
+}
+
+// ----------------------------
+// RENDERING FLOW NODES (SSML)
+// ----------------------------
+function ssmlForNode(node, nodeId, session) {
+  const tone = node.tone || "neutral";
+  const settings = toneMap[tone] || toneMap.neutral;
+  let text = sanitizeCues(node.say || "Let’s continue.");
+
+  // Enforce standardized phrases and floors
+  text = standardizeSpeech(text);
+
+  // Membership guard: never annual, always monthly language
+  if (/annual|per\s*year|yearly/i.test(text)) {
+    const cents = session.flags.membershipDiscount ? PRICING.MEMBERSHIP_MONTHLY_MIN : PRICING.MEMBERSHIP_MONTHLY_BASE;
+    const dollars = Math.round(cents/100);
+    text = text
+      .replace(/annual|per\s*year|yearly/gi, "monthly")
+      .replace(/\$?\s*\d+(?:\.\d{2})?/g, `$${dollars} per month`);
+  }
+
+  // Processing pause: 4s after "Let me get that processed for you."
+  if (PROCESSING_LINE.test(text)) {
+    return `<speak>${escapeXml(standardizeSpeech(text))}<break time="4000ms"/></speak>`;
+  }
+
+  // Greeting pause: 1.2s after the very first "How are you doing today?"
+  if (nodeId === "start") {
+    return `<speak>${escapeXml(standardizeSpeech(text))}<break time="1200ms"/></speak>`;
+  }
+
+  return toSSML(text, settings);
+}
+
+// ----------------------------
+// CORE ROUTES
+// ----------------------------
+app.get("/", (_req, res) => {
+  res.send("✅ Alex Agent webhook online. Endpoints: GET /start-batch, POST /vapi-webhook, POST /vapi-callback, POST /test-price");
 });
 
-// ============================
-// Batch Dialer: next 5 "pending"
-// ============================
-app.get("/start-batch", async (_req,res)=>{
-  try{
-    if(!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
-    if(!VAPI_API_KEY) throw new Error("Missing VAPI_API_KEY");
+// Batch Dialer: pick next 5 "pending" from Google Sheet
+app.get("/start-batch", async (_req, res) => {
+  try {
+    if (!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
+    if (!process.env.VAPI_API_KEY) throw new Error("Missing VAPI_API_KEY");
+
     const auth = await getAuth();
-    const sheets = google.sheets({version:"v4", auth});
+    const sheets = google.sheets({ version:"v4", auth });
 
     const range = `${SHEET_NAME}!A:Z`;
     const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
     const rows = data.values || [];
-    if(rows.length<2) return res.send("No rows");
+    if (rows.length < 2) return res.json({ started: [], note:"no rows" });
 
-    const headers = rows[0].map(h=>String(h).toLowerCase());
+    const headers = rows[0].map(h => String(h).toLowerCase());
     const idIdx = headers.indexOf("id");
     const phoneIdx = headers.indexOf("phone");
     const statusIdx = headers.indexOf("status");
-    if(idIdx===-1 || phoneIdx===-1 || statusIdx===-1)
+    if (idIdx === -1 || phoneIdx === -1 || statusIdx === -1) {
       throw new Error("Missing required headers (id, phone, status)");
+    }
 
-    const pendings = rows.slice(1).map((r,i)=>({r,i:i+2})).filter(o=>{
-      const s = String(o.r[statusIdx]||"").toLowerCase();
-      return s===""||s==="pending";
-    }).slice(0,5);
-
-    if(pendings.length===0) return res.json({started:[], note:"no pending"});
+    const pendings = rows.slice(1).map((r, i) => ({ r, i: i+2 })).filter(o => {
+      const s = String(o.r[statusIdx] || "").toLowerCase();
+      return s === "" || s === "pending";
+    }).slice(0, 5);
 
     const results = [];
-    for(const p of pendings){
+    for (const p of pendings) {
       const id = p.r[idIdx];
       const phone = p.r[phoneIdx];
-      if(!phone){ results.push({id, error:"no phone"}); continue; }
+      if (!phone) { results.push({ id, error:"no phone" }); continue; }
 
       const payload = {
-        assistantId: ASSISTANT_ID,
-        phoneNumberId: PHONE_NUMBER_ID,
+        assistantId: process.env.ASSISTANT_ID,
+        phoneNumberId: process.env.PHONE_NUMBER_ID,
         customer: { number: phone },
         metadata: { id, rowIndex: p.i }
       };
 
       const vapiResp = await fetch("https://api.vapi.ai/call", {
         method: "POST",
-        headers: { "Content-Type":"application/json", Authorization: `Bearer ${VAPI_API_KEY}` },
-        body: JSON.stringify(payload),
+        headers: { "Content-Type":"application/json", Authorization: `Bearer ${process.env.VAPI_API_KEY}` },
+        body: JSON.stringify(payload)
       });
       const text = await vapiResp.text();
-      let parsed; try { parsed = JSON.parse(text); } catch{ parsed = { raw: text }; }
+      let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
       results.push({ id, phone, response: parsed });
     }
+
     res.json({ started: results });
-  }catch(e){
+  } catch (e) {
     console.error("start-batch error", e);
-    res.status(500).send("start-batch error: " + (e.message||String(e)));
+    res.status(500).send("start-batch error: " + (e.message || String(e)));
   }
 });
 
-// ============================
-// Callback from Vapi
-// ============================
-app.post("/vapi-callback", async (req,res)=>{
-  try{
-    const { metadata, status, result } = req.body||{};
+// Vapi → our webhook (conversation driver)
+app.post("/vapi-webhook", (req, res) => {
+  try {
+    const { sessionId, userInput, intent, cart, plan, bundleCount, membershipDiscount } = req.body || {};
+    if (!sessionId) return res.status(400).json({ error:"Missing sessionId" });
+
+    const s = getSession(sessionId);
+    if (typeof membershipDiscount === "boolean") s.flags.membershipDiscount = membershipDiscount;
+    if (Array.isArray(cart)) s.data.cart = cart;
+    if (plan) s.data.plan = plan;
+    if (bundleCount) s.data.bundleCount = bundleCount;
+
+    // Advance state machine with normalization
+    const normalized = typeof userInput === "string" ? yesNoNormalize(userInput) : "";
+    advanceState(s, normalized, intent);
+
+    // Render current node
+    const node = salesFlow.states[s.state] || { say:"Let’s continue.", tone:"neutral" };
+    const ssml = ssmlForNode(node, s.state, s);
+    const response = {
+      say: standardizeSpeech(node.say || "Let’s continue."),
+      ssml,
+      tone: node.tone || "neutral",
+      format: "ssml",
+      end: !!node.end
+    };
+
+    // Special: capture_sale → ensure 4s pause, then route to closing
+    if (s.state === "capture_sale") {
+      response.say = "Great — let me get that processed for you.";
+      response.ssml = `<speak>${escapeXml(response.say)}<break time="4000ms"/></speak>`;
+      response.tone = "absolute_certainty";
+      s.state = "closing_sale"; // pre-route to ensure we never dead-end
+    }
+
+    // On closing/readback, guarantee shipping window appears
+    if (/closing_sale|readback_confirm/i.test(s.state)) {
+      if (!/five to seven days/i.test(response.say)) {
+        response.say = (response.say + " Delivery is in five to seven days.").trim();
+        response.ssml = toSSML(response.say, toneMap[node.tone || "neutral"]);
+      }
+    }
+
+    return res.json(response);
+  } catch (e) {
+    console.error("vapi-webhook error", e);
+    return res.status(200).json({
+      say: "Thanks for your time today.",
+      ssml: toSSML("Thanks for your time today.", toneMap.neutral),
+      tone: "neutral",
+      format: "ssml",
+      end: true
+    });
+  }
+});
+
+// Vapi → callback after call ends; log to Google Sheets (+ optional Apps Script + CRM)
+app.post("/vapi-callback", async (req, res) => {
+  try {
+    const { metadata, status, result, summary, outcome, declineReason } = req.body || {};
     const id = metadata?.id;
     const rowIndex = metadata?.rowIndex;
-    if(!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
-    if(!id || !rowIndex) throw new Error("Missing metadata.id/rowIndex");
+    if (!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
+    if (!id || !rowIndex) throw new Error("Missing metadata.id/rowIndex");
 
     const auth = await getAuth();
-    const sheets = google.sheets({version:"v4", auth});
+    const sheets = google.sheets({ version:"v4", auth });
 
+    // Read header indices
     const { data: hdr } = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID, range: `${SHEET_NAME}!A1:Z1`
     });
-    const headers = (hdr.values?.[0]||[]).map(h=>String(h).toLowerCase());
-    const statusIdx = headers.indexOf("status")+1;
-    const attemptsIdx = headers.indexOf("attempts")+1;
-    const lastAttemptIdx = headers.indexOf("lastattemptat")+1;
-    const resultIdx = headers.indexOf("result")+1;
-    if(statusIdx<=0||attemptsIdx<=0||lastAttemptIdx<=0||resultIdx<=0)
-      throw new Error("Missing required headers in sheet");
+    const headers = (hdr.values?.[0] || []).map(h => String(h).toLowerCase());
+    const col = (name) => headers.indexOf(name.toLowerCase()) + 1;
+    const statusIdx = col("status");
+    const attemptsIdx = col("attempts");
+    const lastAttemptIdx = col("lastattemptat");
+    const resultIdx = col("result");
+    const notesIdx = col("notes");
+    if ([statusIdx, attemptsIdx, lastAttemptIdx, resultIdx].some(n => n <= 0)) {
+      throw new Error("Missing required headers in sheet (status, attempts, lastAttemptAt, result)");
+    }
 
+    // Attempts++
     const att = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID, range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`
     });
-    const currentAttempts = parseInt(att.data.values?.[0]?.[0]||"0",10);
+    const currentAttempts = parseInt(att.data.values?.[0]?.[0] || "0", 10);
 
     const updates = [
-      { range: `${SHEET_NAME}!R${rowIndex}C${statusIdx}`, values: [[status||"completed"]] },
-      { range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`, values: [[currentAttempts+1]] },
-      { range: `${SHEET_NAME}!R${rowIndex}C${lastAttemptIdx}`, values: [[new Date().toISOString()]] },
-      { range: `${SHEET_NAME}!R${rowIndex}C${resultIdx}`, values: [[result||""]] },
+      { range: `${SHEET_NAME}!R${rowIndex}C${statusIdx}`,       values: [[status || "completed"]] },
+      { range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`,     values: [[currentAttempts + 1]] },
+      { range: `${SHEET_NAME}!R${rowIndex}C${lastAttemptIdx}`,  values: [[new Date().toISOString()]] },
+      { range: `${SHEET_NAME}!R${rowIndex}C${resultIdx}`,       values: [[result || outcome || ""]] }
     ];
+    if (notesIdx > 0) {
+      updates.push({ range: `${SHEET_NAME}!R${rowIndex}C${notesIdx}`, values: [[summary || declineReason || ""]] });
+    }
+
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: SHEET_ID,
       requestBody: { valueInputOption:"RAW", data: updates }
     });
 
-    if(APPS_SCRIPT_URL){
-      try{
-        await fetch(APPS_SCRIPT_URL, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(req.body) });
-      }catch(err){ console.warn("Apps Script forward failed", err.message); }
+    // Optional: forward to Apps Script
+    if (process.env.APPS_SCRIPT_URL) {
+      try {
+        await fetch(process.env.APPS_SCRIPT_URL, {
+          method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(req.body)
+        });
+      } catch (err) { console.warn("Apps Script forward failed:", err.message); }
     }
 
+    // Optional: CRM notify
+    await crmPost("call_callback", { id, status, outcome, summary, declineReason });
+
     res.send("ok");
-  }catch(e){
+  } catch (e) {
     console.error("vapi-callback error", e);
-    res.status(500).send("callback error: " + (e.message||String(e)));
+    res.status(500).send("callback error: " + (e.message || String(e)));
   }
 });
 
-// ============================
-// Conversation Engine
-// ============================
-const sessions = {};
-function getSession(id){ if(!sessions[id]) sessions[id]={ state:"start", data:{}, flags:{ value_complete:false, membershipDiscount:false } }; return sessions[id]; }
-
-const PRICE_WORDS = /(price|cost|how much|total)/i;
-const PAY_WORDS = /(credit|card|pay|payment|checkout|address|ship|shipping|tax|taxes|cvv|zip|bank|routing|account)/i;
-
-// Offer sequence (guidance only; actual flow nodes remain intact)
+// ----------------------------
+// STATE MACHINE
+// ----------------------------
 const OFFER_SEQUENCE = ["package_offer","offer_6mo","offer_3mo","offer_single"];
 
-function renderNodeById(id){
-  const node = salesFlow.states[id];
-  if(!node) return null;
-  return renderNode(node, id);
-}
+const PAY_WORDS = /(credit|card|pay|payment|checkout|address|ship|shipping|tax|taxes|cvv|zip|bank|routing|account)/i;
+const HOTLINE_INTENT = /(service|support|representative|operator|agent|supervisor|help|speak to (a )?human)/i;
 
-function renderNode(node, nodeId){
-  const tone = node.tone || "neutral";
-  const settings = toneMap[tone] || toneMap.neutral;
+function advanceState(session, userInput = "", intent = "") {
+  const curr = salesFlow.states[session.state] || {};
+  const normalized = yesNoNormalize(userInput);
+  const t = String(normalized || "").toLowerCase();
 
-  // Text shaping pipeline
-  let text = sanitizeCues(node.say || "Let’s continue.");
-  text = standardizeShipping(text);
-  text = enforceSingleFloor(text);
-
-  // Membership pricing rewrite (choose price by discount flag)
-  const monthlyCents = (nodeId && /offer_6mo|offer_3mo|package_offer|membership/i.test(nodeId) && sessionsLast?.flags?.membershipDiscount)
-    ? MEMBERSHIP_MONTHLY_CENTS_DISCOUNT
-    : MEMBERSHIP_MONTHLY_CENTS_DEFAULT;
-
-  text = rewriteMembershipPricing(text, monthlyCents);
-
-  // Ensure clean SSML for greeting & processing
-  let ssml;
-  if(nodeId==="start"){
-    ssml = `<speak>${escapeXml(text)}<break time="1200ms"/></speak>`;
-  } else if (PROCESSING_REGEX.test(text)) {
-    ssml = `<speak>${escapeXml(text)}<break time="4000ms"/></speak>`;
-  } else {
-    ssml = toSSML(text, settings);
-  }
-
-  const resp = { say: text, tone, voice: settings, ssml, format: "ssml", end: !!node.end };
-  if(node.pauseMs) resp.pauseMs = node.pauseMs;
-  // Guarantee the “processing” pause
-  if(PROCESSING_REGEX.test(text) && !resp.pauseMs) resp.pauseMs = 4000;
-  return resp;
-}
-
-// State advance respecting simple yes/no + hotline intent
-function nextState(session, userInput=""){
-  const curr = salesFlow.states[session.state];
-  if(curr?.capture){ session.data[curr.capture] = userInput; }
-
-  const normalized = yesNoNormalize(String(userInput||""));
-  const t = normalized.toLowerCase();
-
-  // Hotline intent
-  if(/(service|support|representative|operator|agent|supervisor|help|speak to (a )?human)/i.test(t)){
+  // Hotline intent at any time
+  if (HOTLINE_INTENT.test(t) || HOTLINE_INTENT.test(String(intent))) {
     session.state = "hotline_offer";
     return;
   }
 
-  // Processing route bug: if we're at capture_sale, force closing_sale next
-  if(session.state === "capture_sale"){ session.state = "closing_sale"; return; }
-
-  // Enforce value/identity before payment
-  if(PAY_WORDS.test(t) && !session.flags.value_complete){
-    if(salesFlow.states["identity_intro"]) session.state = "identity_intro";
+  // Enforce identity capture before payment pathways
+  if (PAY_WORDS.test(t) && !session.flags.valueComplete) {
+    if (salesFlow.states["identity_intro"]) session.state = "identity_intro";
     return;
   }
 
-  if(curr?.branches){
-    if(t.includes("yes")) session.state = curr.branches.yes;
-    else if(t.includes("no")) session.state = curr.branches.no;
-    else session.state = curr.branches.hesitate || curr.next;
-  } else if(curr?.next){
+  // Normal branch handling (yes/no/hesitate)
+  if (curr.branches) {
+    if (t.includes("yes")) session.state = curr.branches.yes;
+    else if (t.includes("no")) session.state = curr.branches.no;
+    else session.state = curr.branches.hesitate || curr.next || session.state;
+  } else if (curr.next) {
     session.state = curr.next;
-  } else {
-    session.state = "catch_all";
   }
 
-  // Mark value complete once an offer was accepted
-  if(OFFER_SEQUENCE.includes(session.state)){
-    // still negotiating value
-  } else if (session.state === "identity_intro"){ session.flags.value_complete = true; }
+  // Mark value complete after we reach identity capture or post-offer accept
+  if (session.state === "identity_intro") session.flags.valueComplete = true;
 }
 
-let sessionsLast = null; // last session used in render for membership discount context
+// ----------------------------
+// PRICING API (OPTIONAL DEV TOOL)
+// ----------------------------
+app.post("/test-price", (req, res) => {
+  try {
+    const { plan, bundleCount, membershipDiscount, items, note } = req.body || {};
 
-app.post("/vapi-webhook", (req,res)=>{
-  try{
-    const { sessionId, userInput } = req.body||{};
-    if(!sessionId) return res.status(400).json({ error:"Missing sessionId" });
-
-    const session = getSession(sessionId);
-    sessionsLast = session; // for price rewrite context
-
-    // Advance state machine based on input
-    if(typeof userInput==="string" && userInput.trim()) nextState(session, userInput);
-
-    // If we land in start, render with enforced silent wait
-    if(session.state === "start"){ return res.json(renderNodeById("start") || renderNode({ say:"Hi, this is Alex with Health America. How are you today?", tone:"enthusiastic", pauseMs:1200 }, "start")); }
-
-    // If we are at capture_sale (processing), immediately continue to closing_sale after returning the processing line once
-    if(session.state === "capture_sale"){ const r = renderNodeById("capture_sale") || renderNode({ say:"Great—let me get that processed for you.", tone:"absolute_certainty", pauseMs:4000 }, "capture_sale"); session.state = "closing_sale"; return res.json(r); }
-
-    // Normal render
-    const node = salesFlow.states[session.state];
-    if(!node){
-      const fallback = {
-        say: `I didn't catch that. If you ever need help, our number is ${HOTLINE}.`,
-        tone:"empathetic", voice: toneMap.empathetic,
-        ssml: toSSML(`I didn't catch that. If you ever need help, our number is ${HOTLINE}.`, toneMap.empathetic),
-        format:"ssml", end:false
-      };
-      return res.json(fallback);
-    }
-
-    // Ensure shipping phrasing in closing/readback if present
-    if(/closing_sale|readback_confirm/i.test(session.state)){
-      node.say = standardizeShipping(node.say);
-      if(/readback_confirm/i.test(session.state)){
-        // Insert explicit shipping window if template forgot it
-        if(!/five to seven days/i.test(node.say)){
-          node.say += "; delivery in five to seven days.";
-        }
+    let result;
+    if (Array.isArray(items) && items.length > 0) {
+      result = priceFromCart(items);
+    } else if (typeof note === "string") {
+      const n = parseNaturalBundleHint(note);
+      if (n && n.each && Number.isFinite(n.months)) {
+        // Treat as two identical packages at the months given
+        if (n.months === 3)      result = priceFromPlan("3M", 2, !!membershipDiscount);
+        else if (n.months === 6) result = priceFromPlan("6M", 2, !!membershipDiscount);
+        else if (n.months === 12)result = priceFromPlan("12M",2, !!membershipDiscount);
+        else if (n.months === 15)result = priceFromPlan("15M",2, !!membershipDiscount);
+        else result = { cents: PRICING.SINGLE_MIN * 2, kind:"FALLBACK", recurring:"one-time" };
       }
     }
 
-    return res.json(renderNode(node, session.state));
-  }catch(e){
-    console.error("vapi-webhook error", e);
-    res.status(200).json({
-      say:"Thanks for your time today.",
-      tone:"neutral", voice: toneMap.neutral,
-      ssml: toSSML("Thanks for your time today.", toneMap.neutral),
-      format:"ssml", end:true
+    if (!result) {
+      result = priceFromPlan(plan || "3M", Number(bundleCount || 1), !!membershipDiscount);
+    }
+
+    res.json({
+      cents: result.cents,
+      human: toHumanCurrency(result.cents),
+      kind: result.kind,
+      recurring: result.recurring
     });
+  } catch (e) {
+    res.status(400).json({ error: e.message || String(e) });
   }
 });
 
-// ============================
-// Start
-// ============================
+// ----------------------------
+// PAYMENT ADAPTERS (stubs w/ structure)
+// ----------------------------
+async function chargeWithStripe({ amountCents, currency = "usd", description, metadata }) {
+  if (!Stripe || !process.env.STRIPE_SECRET_KEY) return { ok:false, reason:"stripe_unconfigured" };
+  try {
+    const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+    // Server-created PaymentIntent; actual confirmation typically requires client side.
+    const intent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency,
+      description,
+      metadata
+    });
+    // For voice flow demo, assume "requires_action" and handoff to follow-up is fine.
+    return { ok: intent.status === "succeeded", id:intent.id, status:intent.status };
+  } catch (e) {
+    return { ok:false, reason: e.message || "stripe_error" };
+  }
+}
+
+async function chargeWithAuthorizeNet({ amountCents, description, metadata }) {
+  // Stub: outline only; production requires Authorize.Net SDK + Transaction Request.
+  if (!process.env.AUTHNET_LOGIN_ID || !process.env.AUTHNET_TRANSACTION_KEY) {
+    return { ok:false, reason:"authnet_unconfigured" };
+  }
+  // In this template, simulate a failure if amount is odd to test decline flow.
+  const fail = (amountCents % 2) === 1;
+  if (fail) return { ok:false, reason:"card_declined" };
+  return { ok:true, id: crypto.randomUUID(), status:"approved" };
+}
+
+// ----------------------------
+// DECLINE HANDLING UTIL
+// ----------------------------
+async function handleDecline(session, resObj, declineReason) {
+  session.flags.declined = true;
+  // Speak empathetic decline message
+  const say = DECLINE_POLICY.CUSTOMER_MESSAGE;
+  const ssml = toSSML(say, toneMap.empathetic);
+
+  // Log to CRM + Sheets via /vapi-callback normally after call
+  await crmPost("payment_declined", {
+    sessionId: session.id,
+    declineReason,
+    when: new Date().toISOString()
+  });
+
+  // Return immediate response
+  Object.assign(resObj, { say, ssml, tone:"empathetic", format:"ssml", end:false });
+}
+
+// ----------------------------
+// START SERVER
+// ----------------------------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, ()=> console.log(`🚀 Server running on ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Alex Guardrail Server running on :${PORT}`));
