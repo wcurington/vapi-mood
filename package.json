@@ -1,20 +1,19 @@
 {
-  "name": "health-america-dialer",
-  "version": "2.0.0",
-  "description": "Vapi Tone-Aware Batch Dialer + Webhook (XXXXXL Edition with fixes)",
+  "name": "vapi-render-webhook",
+  "version": "1.0.0",
   "main": "server.js",
+  "license": "MIT",
   "scripts": {
-    "start": "node server.js",
-    "build-flow": "node build_flow.js"
+    "start": "node server.js"
   },
   "dependencies": {
+    "express": "^4.19.2",
     "body-parser": "^1.20.3",
     "dotenv": "^16.4.5",
-    "express": "^4.21.1",
-    "googleapis": "^133.0.0",
-    "node-fetch": "^2.7.0"
-  },
-  "engines": {
-    "node": ">=18"
+    "googleapis": "^134.0.0",
+    "node-fetch": "^2.7.0",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.2.0",
+    "stripe": "^16.0.0"
   }
 }
