@@ -1,20 +1,23 @@
 {
   "name": "vapi-render-webhook",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Vapi webhook + batch dialer with tone-aware Straight Line flow",
   "main": "server.js",
   "type": "commonjs",
   "engines": { "node": "18.x" },
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "nodemon server.js"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "googleapis": "^131.0.0",
-    "node-fetch": "2.6.7"
+    "node-fetch": "2.6.7",
+    "stripe": "^12.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }
-

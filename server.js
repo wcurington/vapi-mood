@@ -1,6 +1,12 @@
 // ============================
 // server.js – Vapi Tone-Aware Batch Dialer + Webhook (XXXL EDITION)
 // ============================
+//
+// ⚠️ CRITICAL DIRECTIVE ⚠️
+// 1) Respect flows that enforce "Maximum Value Before Price".
+// 2) STRICT offer step-down: annual/membership → 6mo → 3mo → single.
+// 3) NEVER strip or overwrite these principles; only add refinements.
+//
 // Features:
 // - /start-batch (reads Google Sheet "outbound_list", launches 5 pending calls per batch)
 // - /vapi-webhook (tone-aware, pauseMs, slang yes/no mapping, hotline routing, currency speech, address pacing)
@@ -8,7 +14,6 @@
 // - SSML prosody + non-vocalized cues (no literal "pause" spoken)
 // - 4s processing pause after "let me get that processed for you"
 // - Hotline available: 1-866-379-5131
-// - Robust logging + safe fallbacks
 // - Uses env: GOOGLE_SERVICE_ACCOUNT (base64), SPREADSHEET_ID, VAPI_API_KEY, ASSISTANT_ID, PHONE_NUMBER_ID, APPS_SCRIPT_URL, PORT
 
 require("dotenv").config();
@@ -85,7 +90,6 @@ function yesNoNormalize(s=""){
   return s;
 }
 function humanCurrency(cents){
-  // expects value in cents or string like "29999"
   const n = typeof cents==="number" ? cents : Math.round(parseFloat(String(cents).replace(/[^\d.]/g,""))*100);
   const dollars = Math.floor(n/100);
   const rem = n%100;
@@ -199,10 +203,9 @@ app.post("/vapi-callback", async (req,res)=>{
       requestBody: { valueInputOption:"RAW", data: updates }
     });
 
-    // forward to Apps Script if configured
-    if(APPS_SCRIPT_URL){
+    if(process.env.APPS_SCRIPT_URL){
       try{
-        await fetch(APPS_SCRIPT_URL, {
+        await fetch(process.env.APPS_SCRIPT_URL, {
           method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(req.body)
         });
       }catch(err){ console.warn("Apps Script forward failed", err.message); }
@@ -223,10 +226,8 @@ function getSession(id){ if(!sessions[id]) sessions[id]={ state:"start", data:{}
 
 function nextState(session, userInput=""){
   const curr = salesFlow.states[session.state];
-  // capture
   if(curr?.capture){ session.data[curr.capture] = userInput; }
 
-  // routing
   let input = String(userInput||"");
   input = yesNoNormalize(input);
 
@@ -247,8 +248,7 @@ function renderNode(node){
   const tone = node.tone || "neutral";
   const settings = toneMap[tone] || toneMap.neutral;
   let text = node.say || "Let’s continue.";
-  // non-vocalized cues:
-  text = text.replace(/\b\(pause\b.*?\)/gi,"").replace(/\b\(compliment.*?\)/gi,"");
+  text = text.replace(/\b\(pause\b.*?\)/gi,"").replace(/\b\(compliment.*?\)/gi,""); // never vocalize cues
   const res = {
     say: text,
     tone,
