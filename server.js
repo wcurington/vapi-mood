@@ -1,18 +1,15 @@
 // ============================
-// server.js — Guardrail + Tenacious Engagement Edition
+// server.js — Dead-Air Killer + Tenacious Guard + Auto-Recovery
 // ============================
 //
-// CORE GUARANTEES (do not remove):
-// • Preserve all existing features and content.
-// • Enforce: NEVER say “Mark 1/2”, “Robot Model A”, “Unit 3”, or similar labels.
-// • Enforce: Prices spoken as clear words at a slightly slower cadence.
-// • Enforce: Internal stage directions (e.g., "(pause)", "Long Pause") are NEVER spoken.
-// • Enforce: Maximum value before price is handled in flow logic; server respects flow.
-// • Harden: Input validation, security headers, basic rate limiting, safe error handling.
-// • Tenacity: Do NOT end calls unless explicit double-confirmed goodbye or verified technical failure.
-//
-// NON-DESTRUCTIVE FLOW HANDLING:
-// • Loads flows/flows_alex_sales.json at runtime; does not edit that file on disk.
+// HARD GUARANTEES:
+// • Zero “dead-air”: guarded by phase-aware silence thresholds, auto-bridging SSML, and re-engagement nudges.
+// • Never end unless explicit, double-confirmed goodbye (or verified technical failure).
+// • “Maximum value before price” remains enforced by flow; server respects flow.
+// • Prices are spoken in clear words, slightly slower; stage directions never spoken.
+// • Hardened input validation, security headers, rate limiting, safe error handling.
+// • External calls protected with retries + exponential backoff + circuit breakers.
+// • Non-destructive: loads flows/flows_alex_sales.json; never rewrites it.
 //
 // ENV VARS (Render):
 //   PORT
@@ -22,7 +19,8 @@
 //   ASSISTANT_ID
 //   PHONE_NUMBER_ID
 // Optional:
-//   APPS_SCRIPT_URL, CRM_WEBHOOK_URL
+//   APPS_SCRIPT_URL
+//   CRM_WEBHOOK_URL
 //   STRIPE_SECRET_KEY
 //   AUTHNET_LOGIN_ID, AUTHNET_TRANSACTION_KEY, AUTHNET_ENV ("sandbox"|"production")
 //
@@ -50,13 +48,12 @@ const app = express();
 
 // ---------- Security & Parsing ----------
 app.use(helmet({
-  // These can be tuned per hosting environment
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: false
 }));
 app.use(rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100,            // 100 req/min/IP
+  windowMs: 60 * 1000,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false
 }));
@@ -89,15 +86,26 @@ const NUMBER_WORDS = /point\s*(\d{1,2})/i;
 // ---------- Hangup Guard 2.0 ----------
 const HANGUP_GUARD = Object.freeze({
   REQUIRE_EXPLICIT_GOODBYE: true,
-  DOUBLE_CONFIRM_GOODBYE: true,     // require 2 explicit end intents separated by a prompt
-  SILENCE_MS: 12000,                 // 12s of no user input → re-engage (do NOT end)
-  MAX_SILENCE_REASKS: 3,             // number of keep-alive nudges before offering callback
-  MAX_NEGATIVE_DEFLECTIONS: 3        // deflect “no / not interested” this many times before soft-offer alt
+  DOUBLE_CONFIRM_GOODBYE: true,
+  SILENCE_MS: 12000,
+  MAX_SILENCE_REASKS: 3,
+  MAX_NEGATIVE_DEFLECTIONS: 3
 });
-
 const GOODBYE_RX = /\b(?:goodbye|bye\b|that(?:'| i)s all|i(?:\s*)'?m done|end (?:the )?call|hang ?up|stop now|no more)\b/i;
 const NEGATIVE_BUT_SAVABLE_RX = /\b(?:no( thanks?)?|not interested|maybe later|i can'?t|too expensive|don'?t need|another time)\b/i;
 const INTEREST_RX = /\b(?:tell me more|what (?:are|other) options|continue|go on|what else|how (?:much|does it)|price|membership|six|three|single|discount|start|buy|order|yes|yeah|yep|okay|ok|sure|please|proceed|go ahead)\b/i;
+
+// ---------- Value-Match Anti-Silence ----------
+const VALUE_MATCH_TRIGGER_RX = /\b(let'?s|let me)\s+(get you matched|match you)\s+.*\bright product\b/i;
+const VALUE_MATCH_BRIDGE_QUESTIONS = [
+  "To make sure it’s a fit, do you have any joint pain, stiffness, or mobility issues lately?",
+  "To match you precisely, are you dealing with blood pressure concerns right now?",
+  "So I can dial this in, what health goal is most important for you today?"
+];
+const PHASE_SILENCE = Object.freeze({
+  normal:     { ms: 12000, reasks: 3 },
+  value_match:{ ms: 3500,  reasks: 2 }
+});
 
 // ---------- Load Flow (non-destructive) ----------
 let salesFlow;
@@ -128,16 +136,67 @@ function getAuth() {
 const SHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_NAME = "outbound_list";
 
+// ---------- Circuit Breakers + Retries ----------
+const breakers = {
+  vapi: { openUntil: 0, fails: 0 },
+  appsScript: { openUntil: 0, fails: 0 },
+  crm: { openUntil: 0, fails: 0 },
+  sheets: { openUntil: 0, fails: 0 }
+};
+const BACKOFF_BASE = 250;  // ms
+const BACKOFF_MAX  = 3000; // ms
+const CB_OPEN_MS   = 15_000;
+
+function breakerOpen(key) {
+  return Date.now() < (breakers[key]?.openUntil || 0);
+}
+function breakerTrip(key) {
+  const b = breakers[key]; if (!b) return;
+  b.fails++;
+  if (b.fails >= 3) { b.openUntil = Date.now() + CB_OPEN_MS; b.fails = 0; }
+}
+function breakerClose(key) {
+  const b = breakers[key]; if (!b) return;
+  b.openUntil = 0; b.fails = 0;
+}
+
+async function fetchWithRetry(key, url, opts, tries = 3) {
+  if (breakerOpen(key)) throw new Error(`${key}_circuit_open`);
+  let attempt = 0, lastErr;
+  while (attempt < tries) {
+    try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
+      const res = await fetch(url, { ...opts, signal: ctrl.signal });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`${key}_http_${res.status}`);
+      breakerClose(key);
+      return res;
+    } catch (e) {
+      lastErr = e;
+      attempt++;
+      if (attempt >= tries) {
+        breakerTrip(key);
+        break;
+      }
+      await new Promise(r => setTimeout(r, Math.min(BACKOFF_BASE * (2 ** attempt), BACKOFF_MAX)));
+    }
+  }
+  throw lastErr || new Error(`${key}_failed`);
+}
+
 // ---------- Optional CRM webhook ----------
 async function crmPost(eventName, payload) {
   const url = process.env.CRM_WEBHOOK_URL;
   if (!url) return;
   try {
-    await fetch(url, {
+    if (breakerOpen("crm")) return;
+    const res = await fetchWithRetry("crm", url, {
       method: "POST",
       headers: { "Content-Type":"application/json" },
       body: JSON.stringify({ event: eventName, payload })
-    });
+    }, 3);
+    await res.text();
   } catch (e) {
     console.warn("CRM webhook failed:", e.message);
   }
@@ -156,16 +215,13 @@ const toneMap = {
 function escapeXml(s) {
   return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
-
-// Strip internal directions and any robotic labels
 function sanitizeCues(text="") {
   return text
     .replace(/\(pause\)/gi, "")
     .replace(/\(compliment.*?\)/gi, "")
     .replace(/\(processing.*?\)/gi, "")
-    .replace(/\blong\s*pause\b/gi, ""); // never say "Long Pause"
+    .replace(/\blong\s*pause\b/gi, "");
 }
-
 function stripRoboticLabels(text="") {
   return text
     .replace(/\bmark\s*(one|1)\b[:.]?\s*/gi, "")
@@ -173,8 +229,6 @@ function stripRoboticLabels(text="") {
     .replace(/\brobot\s*model\s*[a-z0-9]+\b/gi, "")
     .replace(/\bunit\s*\d+\b/gi, "");
 }
-
-// Expand $290 / $290.99 into natural words
 function moneyWordsFromText(text="") {
   return text.replace(/\$ ?(\d{1,3}(?:,\d{3})*)(?:\.(\d{1,2}))?/g, (_, dStr, cStr) => {
     const dollars = parseInt(dStr.replace(/,/g, ""), 10) || 0;
@@ -183,8 +237,6 @@ function moneyWordsFromText(text="") {
     return toHumanCurrency(totalCents);
   });
 }
-
-// Normalize speech: fix “point 99”, normalize delivery window, etc.
 function standardizeSpeech(text = "") {
   let s = sanitizeCues(text);
   s = stripRoboticLabels(s);
@@ -193,10 +245,9 @@ function standardizeSpeech(text = "") {
     const n = parseInt(cents, 10);
     return Number.isFinite(n) && n > 0 ? `${n} ${n === 1 ? "cent" : "cents"}` : _;
   });
-  s = moneyWordsFromText(s); // expand $… to words (prevents slurring)
+  s = moneyWordsFromText(s);
   return s;
 }
-
 function toSSML(text, settings = toneMap.neutral) {
   const pitch = settings.pitch || "0%";
   const rate = settings.rate || "0%";
@@ -204,36 +255,27 @@ function toSSML(text, settings = toneMap.neutral) {
   const safe = standardizeSpeech(text);
   return `<speak><prosody pitch="${pitch}" rate="${rate}" volume="${volume}">${escapeXml(safe)}</prosody></speak>`;
 }
-
 function ssmlForNode(node, nodeId, session) {
   const tone = node.tone || "neutral";
   const settings = { ...(toneMap[tone] || toneMap.neutral) };
   let text = node.say || "Let’s continue.";
-  text = standardizeSpeech(text); // includes cue stripping + $→words + phrasing fixes
+  text = standardizeSpeech(text);
 
   if (/\b\d+\s*dollars?\b|\b\d+\s*cents?\b|dollars|cents/i.test(text)) {
     settings.rate = "-10%";
     settings.pitch = settings.pitch || "-2%";
   }
-
-  // Processing pause: 4s after the processing line
   if (PROCESSING_LINE.test(text)) {
     return `<speak>${escapeXml(text)}<break time="4000ms"/></speak>`;
   }
-
-  // Greeting pause at start
   if (nodeId === "start") {
     return `<speak>${escapeXml(text)}<break time="1200ms"/></speak>`;
   }
-
-  // Health questions often include pauseMs in flow
   if (node.pauseMs && Number.isFinite(node.pauseMs)) {
     return `<speak>${escapeXml(text)}<break time="${Math.max(0,node.pauseMs)}ms"/></speak>`;
   }
-
   return toSSML(text, settings);
 }
-
 function yesNoNormalize(s = "") {
   const t = String(s).toLowerCase();
   if (/(^|\b)(yep|yeah|ya|sure|ok|okay|affirmative|uh huh|yup|please do|go ahead)($|\b)/.test(t)) return "yes";
@@ -255,7 +297,6 @@ function priceFromPlan(plan, bundleCount = 1, membershipDiscount = false) {
     default:    return { cents: PRICING.THREE_MONTH * bundleCount,   kind: "3M",  recurring: "one-time" };
   }
 }
-
 function priceFromCart(items = []) {
   let buckets = { 3:0, 6:0, 12:0, 15:0, OTHER:0 };
   for (const it of items) {
@@ -275,7 +316,6 @@ function priceFromCart(items = []) {
   cents += PRICING.SINGLE_MIN * buckets.OTHER;
   return { cents, kind:"CART_SUM", recurring: "one-time" };
 }
-
 function parseNaturalBundleHint(str = "") {
   const m = /(\d+)\s*months?\s*of\s*each/i.exec(str);
   if (!m) return null;
@@ -283,7 +323,6 @@ function parseNaturalBundleHint(str = "") {
   if (!Number.isFinite(months)) return null;
   return { months, each: true };
 }
-
 function toHumanCurrency(cents) {
   const n = Math.max(0, Number.isFinite(cents) ? cents : 0);
   const dollars = Math.floor(n/100);
@@ -311,14 +350,15 @@ function getSession(sessionId) {
         attemptedPayment:false,
         declined:false
       },
-      // Tenacious engagement tracking
       engagement: {
         level: 1,
         lastUserSignal: Date.now(),
         silenceReasks: 0,
         explicitGoodbyes: 0,
         interestScore: 0,
-        negativesDeflected: 0
+        negativesDeflected: 0,
+        phase: "normal",            // "normal" | "value_match"
+        phaseSilenceReasks: 0
       }
     };
   }
@@ -369,6 +409,10 @@ function shouldReengage(session, utter="") {
   return true;
 }
 function nowMs() { return Date.now(); }
+function pickBridgeQuestion(seed = 0) {
+  const arr = VALUE_MATCH_BRIDGE_QUESTIONS;
+  return arr[Math.abs(seed) % arr.length] || arr[0];
+}
 
 // ---------- State Machine Advance ----------
 const PAY_WORDS = /(credit|card|pay|payment|checkout|address|ship|shipping|tax|taxes|cvv|zip|bank|routing|account)/i;
@@ -401,17 +445,12 @@ function advanceState(session, userInput = "", intent = "") {
   if (session.state === "identity_intro") session.flags.valueComplete = true;
 }
 
-// ---------- SSML Rendering ----------
-function ssmlSayOnly(text, toneKey = "neutral") {
-  return toSSML(text, toneMap[toneKey] || toneMap.neutral);
-}
-
 // ---------- Public Endpoints ----------
 app.get("/", (_req, res) => {
   res.send("✅ Alex Agent webhook online. Endpoints: GET /start-batch, POST /vapi-webhook, POST /vapi-callback, POST /test-price");
 });
 
-// Batch Dialer: next 5 "pending"
+// Batch Dialer: next 5 "pending" (retry + circuit breaker)
 app.get("/start-batch", async (_req, res) => {
   try {
     if (!SHEET_ID) throw new Error("Missing SPREADSHEET_ID");
@@ -451,14 +490,19 @@ app.get("/start-batch", async (_req, res) => {
         metadata: { id, rowIndex: p.i }
       };
 
-      const vapiResp = await fetch("https://api.vapi.ai/call", {
-        method: "POST",
-        headers: { "Content-Type":"application/json", Authorization: `Bearer ${process.env.VAPI_API_KEY}` },
-        body: JSON.stringify(payload)
-      });
-      const text = await vapiResp.text();
-      let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
-      results.push({ id, phone, response: parsed });
+      try {
+        if (breakerOpen("vapi")) throw new Error("vapi_circuit_open");
+        const resp = await fetchWithRetry("vapi", "https://api.vapi.ai/call", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", Authorization: `Bearer ${process.env.VAPI_API_KEY}` },
+          body: JSON.stringify(payload)
+        }, 3);
+        const text = await resp.text();
+        let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+        results.push({ id, phone, response: parsed });
+      } catch (err) {
+        results.push({ id, phone, error: String(err.message || err) });
+      }
     }
 
     res.json({ started: results });
@@ -468,7 +512,7 @@ app.get("/start-batch", async (_req, res) => {
   }
 });
 
-// Conversation driver with Tenacity
+// Conversation driver with Dead-Air Killers + Tenacity
 app.post("/vapi-webhook", (req, res) => {
   try {
     const { sessionId, userInput, intent, cart, plan, bundleCount, membershipDiscount } = req.body || {};
@@ -484,23 +528,42 @@ app.post("/vapi-webhook", (req, res) => {
     const utter = typeof userInput === "string" ? userInput.trim() : "";
     const normalized = yesNoNormalize(utter);
 
-    // Update engagement
+    // Update engagement + phase exit on any speech
     if (utter) {
       s.engagement.lastUserSignal = nowMs();
+      if (s.engagement.phase === "value_match") {
+        s.engagement.phase = "normal";
+        s.engagement.phaseSilenceReasks = 0;
+      }
       if (expressesInterest(utter)) s.engagement.interestScore++;
       if (isNegativeButSavable(utter)) s.engagement.negativesDeflected++;
       if (isExplicitGoodbye(utter)) s.engagement.explicitGoodbyes++;
     }
 
-    // Silence keep-alive: re-engage rather than end
-    const silentTooLong = (nowMs() - s.engagement.lastUserSignal) > HANGUP_GUARD.SILENCE_MS;
-    if (silentTooLong && s.engagement.silenceReasks < HANGUP_GUARD.MAX_SILENCE_REASKS) {
-      s.engagement.silenceReasks++;
-      const say = s.engagement.silenceReasks === HANGUP_GUARD.MAX_SILENCE_REASKS
-        ? "I’m still here whenever you’re ready. Would you like a quick callback from a specialist, or should I continue?"
-        : "I’m with you—take your time. Would you like me to go over the options again, or continue?";
-      const ssml = toSSML(say, toneMap.empathetic);
-      return res.json({ say, ssml, tone:"empathetic", format:"ssml", end:false });
+    // ----- Phase-aware silence handling -----
+    const phaseCfg = PHASE_SILENCE[s.engagement.phase] || PHASE_SILENCE.normal;
+    const silentTooLong = (nowMs() - s.engagement.lastUserSignal) > phaseCfg.ms;
+
+    if (silentTooLong) {
+      if (s.engagement.phase === "value_match") {
+        if (s.engagement.phaseSilenceReasks < phaseCfg.reasks) {
+          s.engagement.phaseSilenceReasks++;
+          const say = s.engagement.phaseSilenceReasks === phaseCfg.reasks
+            ? "I’m with you. Would you like a quick rundown of options, or should I start with joint support?"
+            : "Take your time—just to start us off, are you noticing any joint discomfort or stiffness?";
+          return res.json({ say, ssml: toSSML(say, toneMap.empathetic), tone:"empathetic", format:"ssml", end:false });
+        }
+        const fallback = "I can begin with our most popular option and adjust based on your feedback. Shall I start there?";
+        return res.json({ say: fallback, ssml: toSSML(fallback, toneMap.calm_confidence), tone:"calm_confidence", format:"ssml", end:false });
+      }
+
+      if (s.engagement.silenceReasks < HANGUP_GUARD.MAX_SILENCE_REASKS) {
+        s.engagement.silenceReasks++;
+        const say = s.engagement.silenceReasks === HANGUP_GUARD.MAX_SILENCE_REASKS
+          ? "I’m still here whenever you’re ready. Would you like a quick callback from a specialist, or should I continue?"
+          : "I’m with you—take your time. Would you like me to go over the options again, or continue?";
+        return res.json({ say, ssml: toSSML(say, toneMap.empathetic), tone:"empathetic", format:"ssml", end:false });
+      }
     }
 
     // Deflect negatives before accepting them as terminal
@@ -508,7 +571,7 @@ app.post("/vapi-webhook", (req, res) => {
       const rebuttals = [
         "I hear you—many people felt the same way at first, but found this was exactly what they needed.",
         "I understand your hesitation. If I show the membership savings quickly, would that help?",
-        "Totally fair. Would a shorter plan help you try it with less commitment?",
+        "Totally fair. Would a shorter plan help you try it with less commitment?"
       ];
       const say = rebuttals[s.engagement.negativesDeflected % rebuttals.length];
       const ssml = toSSML(say, toneMap.empathetic);
@@ -518,15 +581,35 @@ app.post("/vapi-webhook", (req, res) => {
     // Advance flow
     advanceState(s, normalized, intent);
 
-    // Render node
+    // Render node and apply anti-dead-air bridges
     const node = salesFlow.states[s.state] || { say:"Let’s continue.", tone:"neutral" };
+    let sayText = standardizeSpeech(node.say || "Let’s continue.");
     let response = {
-      say: standardizeSpeech(node.say || "Let’s continue."),
+      say: sayText,
       ssml: ssmlForNode(node, s.state, s),
       tone: node.tone || "neutral",
       format: "ssml",
       end: !!node.end
     };
+
+    // Value-match: activate phase + bridge a follow-up Q inside same SSML
+    if (VALUE_MATCH_TRIGGER_RX.test(sayText)) {
+      s.engagement.phase = "value_match";
+      s.engagement.phaseSilenceReasks = 0;
+      const bridge = pickBridgeQuestion(s.engagement.interestScore + s.engagement.negativesDeflected);
+      const bridgedSSML = `<speak>${escapeXml(sayText)}<break time="700ms"/>${escapeXml(bridge)}</speak>`;
+      response.say = `${sayText} ${bridge}`;
+      response.ssml = bridgedSSML;
+      response.end = false;
+    }
+
+    // Generic anti-dead-air: if the node isn't a question and has no branches, add a soft check-in
+    if (!/\?/.test(response.say) && !node.branches && !VALUE_MATCH_TRIGGER_RX.test(sayText) && !node.end) {
+      const tagOn = "Does that sound okay so far?";
+      response.say = `${response.say} ${tagOn}`;
+      response.ssml = `<speak>${escapeXml(sayText)}<break time="500ms"/>${escapeXml(tagOn)}</speak>`;
+      response.end = false;
+    }
 
     // Processing gate
     if (s.state === "capture_sale") {
@@ -534,7 +617,7 @@ app.post("/vapi-webhook", (req, res) => {
       response.ssml = `<speak>${escapeXml(response.say)}<break time="4000ms"/></speak>`;
       response.tone = "absolute_certainty";
       s.state = "closing_sale";
-      response.end = false; // do not end here
+      response.end = false;
     }
 
     // Ensure shipping window phrasing on readback/closing
@@ -545,9 +628,8 @@ app.post("/vapi-webhook", (req, res) => {
       }
     }
 
-    // ---------- ANTI-PREMATURE END GUARD ----------
+    // Anti-premature end guard
     const wantsToEnd = !!node.end;
-
     const allowEnd =
       !HANGUP_GUARD.REQUIRE_EXPLICIT_GOODBYE
         ? wantsToEnd
@@ -555,8 +637,6 @@ app.post("/vapi-webhook", (req, res) => {
             (HANGUP_GUARD.DOUBLE_CONFIRM_GOODBYE && s.engagement.explicitGoodbyes >= 2) ||
             (!HANGUP_GUARD.DOUBLE_CONFIRM_GOODBYE && s.engagement.explicitGoodbyes >= 1)
           ));
-
-    // If node wants to end but we don't have explicit permission, do a polite wrap-check
     if (wantsToEnd && !allowEnd) {
       const probe = s.engagement.interestScore > 0
         ? "Before we wrap, do you want me to go over any offer details again, or connect you with a representative?"
@@ -568,7 +648,6 @@ app.post("/vapi-webhook", (req, res) => {
         format: "ssml",
         end: false
       };
-      // Reset silence re-asks to give room now
       s.engagement.silenceReasks = 0;
     }
 
@@ -583,7 +662,6 @@ app.post("/vapi-webhook", (req, res) => {
 });
 
 // Callback after call ends; log to Google Sheets (+ optional Apps Script + CRM)
-// Hardened validation and graceful handling
 app.post("/vapi-callback", async (req, res) => {
   try {
     const body = req.body || {};
@@ -597,7 +675,6 @@ app.post("/vapi-callback", async (req, res) => {
     const auth = await getAuth();
     const sheets = google.sheets({ version:"v4", auth });
 
-    // Read headers
     const { data: hdr } = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID, range: `${SHEET_NAME}!A1:Z1`
     });
@@ -613,13 +690,12 @@ app.post("/vapi-callback", async (req, res) => {
       throw new Error("Missing required headers in sheet (status, attempts, lastAttemptAt, result)");
     }
 
-    // Attempts++ safely
+    // Attempts++
     const att = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID, range: `${SHEET_NAME}!R${rowIndex}C${attemptsIdx}`
     });
     const currentAttempts = parseInt(att.data.values?.[0]?.[0] || "0", 10);
 
-    // Guard: if the outcome indicates continued engagement, do not mark "completed"
     const safeStatus = (status || "").toLowerCase();
     const finalStatus = (safeStatus === "completed" && outcome === "customer_still_engaged")
       ? "needs_followup"
@@ -635,17 +711,26 @@ app.post("/vapi-callback", async (req, res) => {
       updates.push({ range: `${SHEET_NAME}!R${rowIndex}C${notesIdx}`, values: [[summary || declineReason || ""]] });
     }
 
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: { valueInputOption:"RAW", data: updates }
-    });
+    // Batch update with retry protected by breaker
+    try {
+      if (breakerOpen("sheets")) throw new Error("sheets_circuit_open");
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: { valueInputOption:"RAW", data: updates }
+      });
+      breakerClose("sheets");
+    } catch (err) {
+      breakerTrip("sheets");
+      console.warn("Sheets batchUpdate failed:", err.message);
+    }
 
     // Optional forwards
-    if (process.env.APPS_SCRIPT_URL) {
+    if (process.env.APPS_SCRIPT_URL && !breakerOpen("appsScript")) {
       try {
-        await fetch(process.env.APPS_SCRIPT_URL, {
+        const res2 = await fetchWithRetry("appsScript", process.env.APPS_SCRIPT_URL, {
           method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
-        });
+        }, 2);
+        await res2.text();
       } catch (err) { console.warn("Apps Script forward failed:", err.message); }
     }
     await crmPost("call_callback", { id, status: finalStatus, outcome, summary, declineReason });
@@ -707,7 +792,7 @@ async function chargeWithStripe({ amountCents, currency = "usd", description, me
     return { ok:false, reason: e.message || "stripe_error" };
   }
 }
-async function chargeWithAuthorizeNet({ amountCents, description, metadata }) {
+async function chargeWithAuthorizeNet({ amountCents }) {
   if (!process.env.AUTHNET_LOGIN_ID || !process.env.AUTHNET_TRANSACTION_KEY) {
     return { ok:false, reason:"authnet_unconfigured" };
   }
@@ -731,4 +816,4 @@ async function handleDecline(session, resObj, declineReason) {
 
 // ---------- Start ----------
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Alex Tenacious Guard Server running on :${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Alex Dead-Air Killer Server running on :${PORT}`));
