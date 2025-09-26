@@ -1,14 +1,14 @@
 // ==========================================================================
-// build_flow.js — Systemic Health Flow + Sales Stitch + 30k Padding
+// build_flow.js — Systemic Health Flow + Sales Stitch + 30k Padding (Fixed)
 // ==========================================================================
 //
-// GOAL
+// GOALS
 // - Systemic fix: EVERY health question uses golden pattern
 //   (yes/no/silence branches, extended pauses, empathetic re-asks).
-// - Insert full sales journey AFTER a concise, informative health section.
+// - Insert sales journey AFTER a concise, informative health section.
 // - Pad with low-risk "micro-turns" to ~30,000+ states (configurable).
-// - Never prints "Agent waits 900ms" or any stage directions as text.
-// - Only uses pauseMs, which your server.js converts to SSML <break/>.
+// - Never prints stage directions like "Agent waits …" as text.
+// - Uses pauseMs only; your server renders SSML <break/>.
 //
 // OUTPUT
 // - flows/flows_alex_sales.json
@@ -16,7 +16,7 @@
 // CONFIG (env or defaults)
 // - TARGET_STATES: total graph size target (default 30000)
 // - HEALTH_BLOCKS: number of golden health questions before sales (default 40)
-// - MICRO_TURN_BATCH: size of each micro-turn batch (default 50)
+// - MICRO_TURN_BATCH: micro-turn nodes per batch (default 50)
 //
 // ==========================================================================
 
@@ -26,9 +26,9 @@ const path = require("path");
 const OUT_FILE = path.join(__dirname, "flows", "flows_alex_sales.json");
 
 // ---------- Config ----------
-const TARGET_STATES    = Number(process.env.TARGET_STATES || 30000);
-const HEALTH_BLOCKS    = Math.max(10, Number(process.env.HEALTH_BLOCKS || 40));     // concise but meaningful health pass
-const MICRO_TURN_BATCH = Math.max(10, Number(process.env.MICRO_TURN_BATCH || 50));  // batch size used to pad to target
+const TARGET_STATES    = Math.max(1000, Number(process.env.TARGET_STATES || 30000));
+const HEALTH_BLOCKS    = Math.max(10,   Number(process.env.HEALTH_BLOCKS || 40));     // concise but meaningful health pass
+const MICRO_TURN_BATCH = Math.max(10,   Number(process.env.MICRO_TURN_BATCH || 50));  // batch size used to pad to target
 
 // ---------- Utilities ----------
 function nodeObj(say, tone = "neutral", next = null, branches = null, pauseMs = null, end = false) {
@@ -39,21 +39,30 @@ function nodeObj(say, tone = "neutral", next = null, branches = null, pauseMs = 
   if (end) n.end = true;
   return n;
 }
-function addState(states, id, obj) { states[id] = obj; }
-function exists(states, id) { return Object.prototype.hasOwnProperty.call(states, id); }
 
-function randomPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function addState(states, id, obj) {
+  states[id] = obj;
+}
+
+function exists(states, id) {
+  return Object.prototype.hasOwnProperty.call(states, id);
+}
+
+function randomPick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 function ackYes() {
   const opts = ["Got it.", "Perfect.", "Okay, understood.", "Alright, I see."];
   return randomPick(opts);
 }
+
 function ackNo() {
   const opts = ["No problem.", "That’s okay, we can adjust.", "Got it, moving on.", "Alright, we’ll skip that."];
   return randomPick(opts);
 }
 
-// ---------- Health Q Content Banks (rotate to avoid repetition) ----------
+// ---------- Health Q Content Banks ----------
 const HEALTH_BANK = [
   "Do you experience joint pain or stiffness?",
   "How has your blood pressure been lately?",
@@ -72,6 +81,7 @@ const REASK_A = [
   "Just to confirm, could you elaborate for me?",
   "I want to make sure I understand—could you share a little more detail?"
 ];
+
 const REASK_B = [
   "Whenever you're ready, are you experiencing this right now?",
   "Taking your time is fine—should we note that as an ongoing concern?",
@@ -83,10 +93,10 @@ const REASK_B = [
 function addHealthBlock(states, index, nextAfterBlockId) {
   // 7 nodes per block:
   // ask → ack_yes | ack_no | repeat1 → (ack_yes2 | ack_no2 | repeat2) → next
-  const base = `hq${index}`;
-  const askId = `${base}_ask`;
-  const ackYesId = `${base}_ack_yes`;
-  const ackNoId  = `${base}_ack_no`;
+  const base      = `hq${index}`;
+  const askId     = `${base}_ask`;
+  const ackYesId  = `${base}_ack_yes`;
+  const ackNoId   = `${base}_ack_no`;
   const repeat1Id = `${base}_repeat1`;
   const ackYes2Id = `${base}_ack_yes2`;
   const ackNo2Id  = `${base}_ack_no2`;
@@ -125,6 +135,7 @@ function addHealthBlock(states, index, nextAfterBlockId) {
     },
     3000
   ));
+
   addState(states, ackYes2Id, nodeObj(ackYes(), "empathetic", nextAfterBlockId));
   addState(states, ackNo2Id,  nodeObj(ackNo(),  "neutral", nextAfterBlockId));
 
@@ -143,12 +154,19 @@ function addHealthBlock(states, index, nextAfterBlockId) {
 // ---------- Sales Section ----------
 // Enforce "maximum value before price": start at membership/annual,
 // then degrade to 6M → 3M → single upon rejection.
-// Includes light identity/address capture and payment intent nodes.
-
+// Includes identity/address capture and payment intent nodes.
 function addSalesSequence(states, entryIdAfterHealth) {
+  // Bridge into value framing
+  addState(states, "sales_entry_switch", nodeObj(
+    "Thanks for sharing those details.",
+    "calm_confidence",
+    "value_intro",
+    null,
+    600
+  ));
+
   // Value intro (non-price framing)
-  const valueIntro = "value_intro";
-  addState(states, valueIntro, nodeObj(
+  addState(states, "value_intro", nodeObj(
     "Based on what you’ve shared, I have a plan that focuses on long-term support and better consistency.",
     "calm_confidence",
     "offer_membership",
@@ -156,7 +174,6 @@ function addSalesSequence(states, entryIdAfterHealth) {
     600
   ));
 
-  // Offer ladder
   // 1) Membership / Annual-first
   addState(states, "offer_membership", nodeObj(
     "Would you like to start with our membership plan? It provides ongoing support and convenience.",
@@ -170,6 +187,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1000
   ));
+
   addState(states, "offer_membership_clarify", nodeObj(
     "In short, membership means steady progress without gaps, plus preferred fulfillment.",
     "calm_confidence",
@@ -182,6 +200,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1600
   ));
+
   addState(states, "membership_ack_yes", nodeObj(
     "Excellent. I’ll note membership as your plan.",
     "absolute_certainty",
@@ -201,6 +220,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     900
   ));
+
   addState(states, "offer_6m_clarify", nodeObj(
     "Six months gives a meaningful runway to see and sustain improvements.",
     "calm_confidence",
@@ -213,6 +233,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1400
   ));
+
   addState(states, "offer_6m_ack_yes", nodeObj(
     "Great choice. I’ll note the six-month plan.",
     "absolute_certainty",
@@ -232,6 +253,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     900
   ));
+
   addState(states, "offer_3m_clarify", nodeObj(
     "Three months is a concise, focused window to establish momentum.",
     "calm_confidence",
@@ -244,6 +266,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1400
   ));
+
   addState(states, "offer_3m_ack_yes", nodeObj(
     "Understood. I’ll note the three-month plan.",
     "absolute_certainty",
@@ -263,6 +286,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     900
   ));
+
   addState(states, "offer_single_clarify", nodeObj(
     "A single order is a simple way to begin and evaluate how you feel.",
     "calm_confidence",
@@ -275,6 +299,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1200
   ));
+
   addState(states, "offer_single_ack_yes", nodeObj(
     "Sounds good. I’ll note a single order.",
     "absolute_certainty",
@@ -296,6 +321,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     null,
     600
   ));
+
   addState(states, "capture_name", nodeObj(
     "What’s the full name for the order?",
     "empathetic",
@@ -308,13 +334,14 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1200
   ));
+
   addState(states, "capture_name_repeat", nodeObj(
     "When you’re ready, please share the full name, including any middle initial.",
     "empathetic",
     null,
     {
       yes: "capture_address_line1",
-      no: "capture_address_line1", // proceed anyway; ops can reconcile
+      no: "capture_address_line1",
       hesitate: "capture_address_line1",
       silence: "capture_address_line1"
     },
@@ -333,6 +360,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1200
   ));
+
   addState(states, "capture_address_line2", nodeObj(
     "Any apartment or unit number?",
     "empathetic",
@@ -345,6 +373,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     800
   ));
+
   addState(states, "capture_city", nodeObj(
     "Which city is that?",
     "empathetic",
@@ -357,6 +386,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     800
   ));
+
   addState(states, "capture_state", nodeObj(
     "And the state?",
     "empathetic",
@@ -369,6 +399,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     800
   ));
+
   addState(states, "capture_zip", nodeObj(
     "Lastly, what’s the ZIP code?",
     "empathetic",
@@ -382,7 +413,6 @@ function addSalesSequence(states, entryIdAfterHealth) {
     800
   ));
 
-  // Readback/confirm with shipping window phrase (server will enforce if missing)
   addState(states, "readback_confirm", nodeObj(
     "Thanks. I’ve got that noted. I’ll read back details next.",
     "calm_confidence",
@@ -402,6 +432,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     900
   ));
+
   addState(states, "payment_clarify", nodeObj(
     "We’ll process it safely and respect your preferences.",
     "calm_confidence",
@@ -414,6 +445,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
     },
     1200
   ));
+
   addState(states, "payment_deferral", nodeObj(
     "Understood. You can complete payment later—your information is saved.",
     "empathetic",
@@ -437,16 +469,22 @@ function addSalesSequence(states, entryIdAfterHealth) {
     true
   ));
 
-  return { entry: entryIdAfterHealth };
+  // Return entry node so callers can link here after health
+  return { entry: "sales_entry_switch" };
 }
 
-// ---------- Micro-Turn Padding ----------
-// Adds gentle, low-risk nodes to reach TARGET_STATES without breaking flow.
-// Each batch creates a chain of short acknowledgments/clarifications with optional hesitation.
+// ---------- Micro-Turn Padding (Fixed) ----------
+// Adds gentle nodes to reach TARGET_STATES without breaking flow.
+// Safe chaining: guards against undefined "last" references.
 function addMicroTurnsUntil(states, startId, targetCount) {
   let total = Object.keys(states).length;
   let cursor = startId;
   let batchIndex = 1;
+
+  // If the startId isn't a real state, don't attempt to chain from it.
+  if (!cursor || !states[cursor]) {
+    cursor = null;
+  }
 
   while (total < targetCount) {
     const batchId = `mt${batchIndex}`;
@@ -470,12 +508,17 @@ function addMicroTurnsUntil(states, startId, targetCount) {
 
       const nextId = (i === MICRO_TURN_BATCH) ? null : `${batchId}_${i+1}`;
       const branches = useBranch
-        ? { yes: nextId || "closing_sale", no: nextId || "closing_sale", hesitate: nextId || "closing_sale", silence: nextId || "closing_sale" }
+        ? {
+            yes: nextId || "closing_sale",
+            no: nextId || "closing_sale",
+            hesitate: nextId || "closing_sale",
+            silence: nextId || "closing_sale"
+          }
         : null;
 
       nodes.push({ id, obj: nodeObj(say, tone, branches ? null : nextId, branches, pauseMs) });
 
-      // Safe chaining: only link if last exists
+      // Safe chaining: only link if last exists and isn't terminal
       if (last && states[last]) {
         if (!states[last].branches && !states[last].end) {
           states[last].next = id;
@@ -484,8 +527,10 @@ function addMicroTurnsUntil(states, startId, targetCount) {
       last = id;
     }
 
-    // Commit nodes
-    for (const n of nodes) addState(states, n.id, n.obj);
+    // Commit nodes after chaining decisions
+    for (const n of nodes) {
+      addState(states, n.id, n.obj);
+    }
 
     cursor = `${batchId}_${MICRO_TURN_BATCH}`;
     total = Object.keys(states).length;
@@ -495,7 +540,7 @@ function addMicroTurnsUntil(states, startId, targetCount) {
   // Finally, land on closing if cursor not terminal
   if (cursor && states[cursor] && !states[cursor].end) {
     states[cursor].next = "closing_sale";
-  
+  }
 }
 
 // ---------- Main Flow Builder ----------
@@ -523,6 +568,7 @@ function buildFlow() {
     },
     2500
   ));
+
   addState(states, "health_open_ack_yes", nodeObj("Got it.", "empathetic", "hq1_ask"));
   addState(states, "health_open_ack_no",  nodeObj("No problem—I'll run a quick check to be thorough.", "neutral", "hq1_ask"));
   addState(states, "health_open_repeat",  nodeObj(
@@ -534,45 +580,34 @@ function buildFlow() {
   ));
 
   // 2) Concise Health Section (systemic golden pattern)
-  let nextAfterBlock = "sales_entry_switch";
+  // After last health block, jump to sales entry
   for (let i = 1; i <= HEALTH_BLOCKS; i++) {
-    const blockNext = (i === HEALTH_BLOCKS) ? nextAfterBlock : `hq${i+1}_ask`;
-    addHealthBlock(states, i, blockNext);
+    const nextAfter = (i === HEALTH_BLOCKS) ? "sales_entry_switch" : `hq${i+1}_ask`;
+    addHealthBlock(states, i, nextAfter);
   }
 
   // 3) Sales Section (stitched AFTER health)
-  //    We enter the sales ladder from this node:
-  addState(states, "sales_entry_switch", nodeObj(
-    "Thanks for sharing those details.",
-    "calm_confidence",
-    "value_intro",
-    null,
-    600
-  ));
   addSalesSequence(states, "sales_entry_switch");
 
-  // 4) Pad to TARGET_STATES with low-risk micro-turns (after closing paths)
-  //    Create a small bridge from closing → micro-turns if needed
+  // 4) Optional: route a non-terminal to padding entry so we can always hit target size.
+  // We'll anchor from offer_decline_path (soft path) into a post-closing pad.
   if (!exists(states, "post_closing_pad")) {
     addState(states, "post_closing_pad", nodeObj(
       "Before we wrap, I’ll include a brief summary marker.",
       "neutral",
-      "mt1_1",
+      null,
       null,
       500
     ));
   }
-  // Link from closing_sale to post_closing_pad only if closing is not terminal in your runtime.
-  // We’ll keep closing_sale as end:true but the micro-turn chain will be reachable through
-  // non-terminal routes (e.g., payment deferral). To guarantee padding, anchor from offer_decline_path:
   if (exists(states, "offer_decline_path") && !states["offer_decline_path"].end) {
     states["offer_decline_path"].next = "post_closing_pad";
   }
 
-  // Now pad to TARGET_STATES via micro-turns
+  // 5) Pad to TARGET_STATES via micro-turns (safe, low-risk)
   addMicroTurnsUntil(states, "post_closing_pad", TARGET_STATES);
 
-  // Safety: ensure a terminal exists
+  // 6) Ensure terminal exists (safety)
   if (!exists(states, "closing_sale")) {
     addState(states, "closing_sale", nodeObj(
       "Thank you for your time today. Delivery is in five to seven days. Our care line is 1-866-379-5131.",
@@ -589,12 +624,17 @@ function buildFlow() {
 
 // ---------- Run ----------
 (function main() {
-  const flow = buildFlow();
-  fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
-  fs.writeFileSync(OUT_FILE, JSON.stringify(flow, null, 2));
-  const count = Object.keys(flow.states).length;
-  console.log(`✅ Generated flow with ${count} states → ${OUT_FILE}`);
-  if (count < TARGET_STATES) {
-    console.warn(`⚠️ State count (${count}) below TARGET_STATES (${TARGET_STATES}). Consider increasing HEALTH_BLOCKS or MICRO_TURN_BATCH.`);
+  try {
+    const flow = buildFlow();
+    fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+    fs.writeFileSync(OUT_FILE, JSON.stringify(flow, null, 2));
+    const count = Object.keys(flow.states).length;
+    console.log(`✅ Generated flow with ${count} states → ${OUT_FILE}`);
+    if (count < TARGET_STATES) {
+      console.warn(`⚠️ State count (${count}) below TARGET_STATES (${TARGET_STATES}). Consider increasing HEALTH_BLOCKS or MICRO_TURN_BATCH.`);
+    }
+  } catch (err) {
+    console.error("❌ build_flow.js failed:", err && err.stack ? err.stack : err);
+    process.exit(1);
   }
 })();
