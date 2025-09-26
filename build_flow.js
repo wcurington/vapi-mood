@@ -443,7 +443,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
 // ---------- Micro-Turn Padding ----------
 // Adds gentle, low-risk nodes to reach TARGET_STATES without breaking flow.
 // Each batch creates a chain of short acknowledgments/clarifications with optional hesitation.
-function addMicroTurnsUntil(states, startId, targetCount) {
+function addMicroTurnsUntil(states, startId, targetCount) {{
   let total = Object.keys(states).length;
   let cursor = startId;
   let batchIndex = 1;
@@ -465,7 +465,6 @@ function addMicroTurnsUntil(states, startId, targetCount) {
         "Okay."
       ]);
       const tone = randomPick(["empathetic", "calm_confidence", "neutral"]);
-      // Occasional hesitation branch to keep it alive without demanding answers
       const useBranch = Math.random() < 0.15;
       const pauseMs = Math.random() < 0.25 ? 500 + Math.floor(Math.random() * 500) : null;
 
@@ -476,10 +475,11 @@ function addMicroTurnsUntil(states, startId, targetCount) {
 
       nodes.push({ id, obj: nodeObj(say, tone, branches ? null : nextId, branches, pauseMs) });
 
-      // Link prior to current
-      if (last && !states[last]?.next && !states[last]?.end) {
-        // If last already has branches, don't overwrite; otherwise, chain it forward
-        if (!states[last].branches) states[last].next = id;
+      // Safe chaining: only link if last exists
+      if (last && states[last]) {
+        if (!states[last].branches && !states[last].end) {
+          states[last].next = id;
+        }
       }
       last = id;
     }
@@ -493,7 +493,7 @@ function addMicroTurnsUntil(states, startId, targetCount) {
   }
 
   // Finally, land on closing if cursor not terminal
-  if (exists(states, cursor) && !states[cursor].end) {
+  if (cursor && states[cursor] && !states[cursor].end) {
     states[cursor].next = "closing_sale";
   }
 }
