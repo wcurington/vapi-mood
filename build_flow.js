@@ -443,7 +443,7 @@ function addSalesSequence(states, entryIdAfterHealth) {
 // ---------- Micro-Turn Padding ----------
 // Adds gentle, low-risk nodes to reach TARGET_STATES without breaking flow.
 // Each batch creates a chain of short acknowledgments/clarifications with optional hesitation.
-function addMicroTurnsUntil(states, startId, targetCount) {{
+function addMicroTurnsUntil(states, startId, targetCount) {
   let total = Object.keys(states).length;
   let cursor = startId;
   let batchIndex = 1;
@@ -495,7 +495,7 @@ function addMicroTurnsUntil(states, startId, targetCount) {{
   // Finally, land on closing if cursor not terminal
   if (cursor && states[cursor] && !states[cursor].end) {
     states[cursor].next = "closing_sale";
-  }
+  
 }
 
 // ---------- Main Flow Builder ----------
