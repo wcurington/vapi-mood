@@ -1,691 +1,139 @@
 
 /**
- * server_speech_filter.js — XXL Speech/NLP Gateway (Comment‑Heavy, 500+ lines)
- * Responsibilities:
- *  - Sanitize recognized text so internal cues never leak.
- *  - Optional intent pre‑tagging and entity normalization.
- *  - Health‑question pause helpers accessible by server.js.
- *  - Health silence re‑ask phrasing catalogue.
+ * server_speech_filter.js — XXL Edition (speech/output sanitization + health pacing)
+ * ----------------------------------------------------------------------------
+ * PURPOSE
+ *   Centralized speech post-processing and guardrails:
+ *   - Strip any internal stage directions so they never get spoken
+ *   - Expand state abbreviations in addresses to full state names ("LA" -> "Louisiana")
+ *   - Expand currency to clear words ("$199.99" -> "199 dollars and 99 cents")
+ *   - Normalize casual affirmations to yes/no/other
+ *   - Apply adaptive pacing meta for health questions to avoid rapid-fire delivery
+ *   - Expose a small Express router for /speech-filter/* diagnostics & utilities
+ *
+ * DESIGN NOTES
+ *   - Zero external dependencies (safe for Render)
+ *   - Pure functions + a factory for an Express router (lazy require)
+ *   - This module does not mutate input; always returns new strings/objects
+ *
+ * INTEGRATION HINTS
+ *   In server.js ensure you:
+ *     const speechFilter = require('./server_speech_filter');
+ *     app.use('/speech-filter', speechFilter.router());
+ *   and call sanitizeOutput(...) before emitting TTS, plus expandStatesInline(...) for address readbacks.
+ *
+ * GUARANTEES
+ *   - Never lets literals like "Silent 4 S Pause", "(pause)", "(processing...)", etc. leak to the user
+ *   - Expands 50-state USPS abbreviations + DC & territories
+ *   - Keeps output conservative and human-friendly
  */
-
-const INTERNAL_CUE_REGEX = /\b(?:silent\s*\d+\s*s\s*pause|long\s*pause|\(pause\)|\[pause\])\b/gi;
-
-const HEALTH_REASKS = [
-  "No rush — could you tell me a bit more when you're ready?",
-  "I want to be sure I have this right. Could you share a little more detail?",
-  "Whenever you're comfortable, a few more details would help me help you better."
-];
-
-function sanitize(text=""){
-  return String(text).replace(INTERNAL_CUE_REGEX, "").replace(/\s{2,}/g," ").trim();
+const STATE_MAP = Object.freeze({
+  "AL":"Alabama","AK":"Alaska","AZ":"Arizona","AR":"Arkansas","CA":"California","CO":"Colorado","CT":"Connecticut",
+  "DE":"Delaware","FL":"Florida","GA":"Georgia","HI":"Hawaii","ID":"Idaho","IL":"Illinois","IN":"Indiana",
+  "IA":"Iowa","KS":"Kansas","KY":"Kentucky","LA":"Louisiana","ME":"Maine","MD":"Maryland","MA":"Massachusetts",
+  "MI":"Michigan","MN":"Minnesota","MS":"Mississippi","MO":"Missouri","MT":"Montana","NE":"Nebraska","NV":"Nevada",
+  "NH":"New Hampshire","NJ":"New Jersey","NM":"New Mexico","NY":"New York","NC":"North Carolina","ND":"North Dakota",
+  "OH":"Ohio","OK":"Oklahoma","OR":"Oregon","PA":"Pennsylvania","RI":"Rhode Island","SC":"South Carolina",
+  "SD":"South Dakota","TN":"Tennessee","TX":"Texas","UT":"Utah","VT":"Vermont","VA":"Virginia","WA":"Washington",
+  "WV":"West Virginia","WI":"Wisconsin","WY":"Wyoming",
+  "DC":"District of Columbia","PR":"Puerto Rico","VI":"U.S. Virgin Islands","GU":"Guam","AS":"American Samoa","MP":"Northern Mariana Islands"
+});
+const INTERNAL_CUE_REGEX = new RegExp([
+  String.raw`\(\s*pause\s*\)`,
+  String.raw`\(\s*processing.*?\)`,
+  String.raw`\[\s*stage\s*directions\s*\]`,
+  String.raw`(?<!\S)silent\s*\d+\s*s?\s*pause(?!\S)`,
+  String.raw`(?<!\S)long\s*pause(?!\S)`,
+  String.raw`(?<!\S)agent\s*waits?(?:\s*about)?\s*\d+\s*ms(?!\S)`,
+  String.raw`(?<!\S)\*?asides?\*?(?!\S)`
+].join('|'), 'ig');
+const MONEY_REGEX = /\$ ?(\d{1,3}(?:,\d{3})*)(?:\.(\d{1,2}))?/g;
+const YES_WORDS = /\b(yes|yep|yeah|yup|sure|ok|okay|affirmative|please do|go ahead|sounds good)\b/i;
+const NO_WORDS  = /\b(no|nope|nah|negative|not now|maybe later|don(?:'|’)t|do not|stop)\b/i;
+const DEFAULT_HEALTH_MIN_PAUSE_MS = 2600;
+function sanitizeOutput(text = "") {
+  let s = String(text);
+  s = s.replace(INTERNAL_CUE_REGEX, '');
+  s = s.replace(/\s{2,}/g, ' ').trim();
+  return s;
 }
-
-function preTag(raw=""){
-  const text = sanitize(raw);
-  const tags = [];
-  if(/payment|card|checkout|cvv|zip/i.test(text)) tags.push("payment_topic");
-  if(/address|city|state|zip/i.test(text))        tags.push("address_topic");
-  if(/doctor|pain|symptom|health/i.test(text))    tags.push("health_topic");
-  return { text, tags };
+function numberToEnglishCurrency(totalCents) {
+  const n = Math.max(0, Number.isFinite(totalCents) ? totalCents : 0);
+  const dollars = Math.floor(n/100);
+  const cents = n % 100;
+  const centsPart = cents === 0 ? '' : ` and ${cents} ${cents === 1 ? 'cent' : 'cents'}`;
+  return `${dollars} dollars${centsPart}`;
 }
-
-function nextHealthReask(){
-  return HEALTH_REASKS[Math.floor(Math.random()*HEALTH_REASKS.length)];
+function slowDownMoney(text = "") {
+  return String(text).replace(MONEY_REGEX, (_, dStr, cStr) => {
+    const dollars = parseInt(dStr.replace(/,/g, ''), 10) || 0;
+    const cents = cStr ? parseInt(cStr.padEnd(2,'0'), 10) : 0;
+    const total = dollars * 100 + cents;
+    return numberToEnglishCurrency(total);
+  });
 }
-
+function expandStateName(abbrev = "") {
+  const key = String(abbrev).replace(/[^A-Za-z]/g, '').toUpperCase();
+  return STATE_MAP[key] || abbrev;
+}
+function expandStatesInline(text = "") {
+  let s = String(text);
+  s = s.replace(/,\s*([A-Za-z]{2})(?=\s*\d{5}(?:-\d{4})?$)/g, (_, abbr) => `, ${expandStateName(abbr)}`);
+  s = s.replace(/\b([A-Za-z]{2})\b/g, (m, abbr) => {
+    const full = expandStateName(abbr);
+    return STATE_MAP[abbr.toUpperCase()] ? full : m;
+  });
+  return s;
+}
+function normalizeAffirmation(text = "") {
+  const t = String(text).trim();
+  if (YES_WORDS.test(t)) return 'yes';
+  if (NO_WORDS.test(t)) return 'no';
+  return 'other';
+}
+function applyHealthPacing(text = "", opts = {}) {
+  const minPauseMs = Math.max(1200, Number(opts.minPauseMs || DEFAULT_HEALTH_MIN_PAUSE_MS));
+  return { text: sanitizeOutput(text), meta: { minPauseMs } };
+}
+function safeUtterance(text = "", { addressMode = false } = {}) {
+  let s = sanitizeOutput(text);
+  s = slowDownMoney(s);
+  if (addressMode) s = expandStatesInline(s);
+  return s;
+}
+function router() {
+  const express = require('express');
+  const r = express.Router();
+  r.get('/health', (req, res) => {
+    res.json({ status: 'UP', module: 'server_speech_filter', ts: new Date().toISOString() });
+  });
+  r.post('/sanitize', (req, res) => {
+    try { const { text } = req.body || {}; return res.json({ out: sanitizeOutput(text || '') }); }
+    catch { return res.status(400).json({ error: 'bad_input' }); }
+  });
+  r.post('/expand-states', (req, res) => {
+    try { const { text } = req.body || {}; return res.json({ out: expandStatesInline(text || '') }); }
+    catch { return res.status(400).json({ error: 'bad_input' }); }
+  });
+  r.post('/affirm', (req, res) => {
+    try { const { text } = req.body || {}; return res.json({ class: normalizeAffirmation(text || '') }); }
+    catch { return res.status(400).json({ error: 'bad_input' }); }
+  });
+  r.post('/pace/health', (req, res) => {
+    try { const { text, minPauseMs } = req.body || {}; return res.json(applyHealthPacing(text || '', { minPauseMs })); }
+    catch { return res.status(400).json({ error: 'bad_input' }); }
+  });
+  return r;
+}
 module.exports = {
-  sanitize,
-  preTag,
-  nextHealthReask,
-  health(){ return { status:"UP", name:"Speech/NLP Gateway", time: new Date().toISOString() }; }
+  sanitizeOutput,
+  numberToEnglishCurrency,
+  slowDownMoney,
+  expandStateName,
+  expandStatesInline,
+  normalizeAffirmation,
+  applyHealthPacing,
+  safeUtterance,
+  router
 };
-
-// speech-filter doc pad #0001 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0002 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0003 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0004 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0005 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0006 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0007 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0008 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0009 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0010 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0011 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0012 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0013 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0014 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0015 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0016 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0017 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0018 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0019 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0020 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0021 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0022 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0023 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0024 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0025 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0026 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0027 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0028 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0029 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0030 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0031 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0032 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0033 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0034 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0035 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0036 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0037 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0038 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0039 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0040 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0041 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0042 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0043 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0044 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0045 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0046 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0047 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0048 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0049 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-
-// speech-filter doc pad #0050 — operational notes, runbooks, FAQs
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
-// This section documents operational scenarios, runbooks, failure modes, and step-by-step playbooks.
+/* Long-form runbooks omitted here for brevity in code block generation. */
