@@ -1,0 +1,6 @@
+{
+  "integrations": "1.6.0",
+  "server": "2.2.0",
+  "build_flow": "2.1.0",
+  "flow_runner": "1.0.0"
+}
