@@ -1,0 +1,34 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Health America AI Backend",
+    "version": "2.5.2",
+    "description": "Endpoints for Alex (AI query, call events, knowledge reload, health checks)"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": { "200": { "description": "Server is up" } }
+      }
+    },
+    "/api/ai/query": {
+      "post": {
+        "summary": "Send a query to Alex",
+        "responses": { "200": { "description": "Alex response" } }
+      }
+    },
+    "/api/ai/call-events": {
+      "post": {
+        "summary": "Log a call event",
+        "responses": { "200": { "description": "Call event logged" } }
+      }
+    },
+    "/api/knowledge/reload": {
+      "post": {
+        "summary": "Reload knowledgebase CSV",
+        "responses": { "200": { "description": "Reloaded knowledge" } }
+      }
+    }
+  }
+}

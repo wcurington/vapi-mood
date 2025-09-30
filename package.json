@@ -1,13 +1,14 @@
 {
   "name": "vapi-render-webhook",
-  "version": "2.2.0",
+  "version": "2.5.4",
   "description": "Health America AI Voice Agent backend with flows, integrations, and server logic",
-  "main": "server_v2.2.0.js",
+  "main": "server_v2.5.4.js",
   "scripts": {
     "start": "node -e \"require('./versionLoader').loadLatestVersion('server')\"",
-    "start:direct": "node server_v2.2.0.js",
+    "start:direct": "node server_v2.5.4.js",
     "build:flow": "node build_flow_v2.1.0.js",
     "run:flow": "node flow_runner_v1.0.0.js",
+    "lint": "eslint .",
     "test": "echo \"No tests specified\" && exit 0"
   },
   "dependencies": {
@@ -15,10 +16,26 @@
     "compression": "^1.7.4",
     "cors": "^2.8.5",
     "csv-parse": "^5.5.0",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^7.1.0",
+    "express-validator": "^7.2.0",
     "helmet": "^7.1.0",
+    "ioredis": "^5.4.1",
+    "lru-cache": "^10.2.1",
     "morgan": "^1.10.0",
-    "multer": "1.4.5-lts.1"
+    "multer": "1.4.5-lts.1",
+    "node-cache": "^5.1.2",
+    "openai": "^4.0.0",
+    "pg": "^8.16.3",
+    "pino-http": "^10.3.0",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^9.0.1",
+    "winston": "^3.14.2"
+  },
+  "devDependencies": {
+    "eslint": "^9.12.0",
+    "nodemon": "^3.1.4"
   },
   "engines": {
     "node": ">=18.0.0"
